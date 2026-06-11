@@ -141,6 +141,19 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["league_members"]["Row"], "id" | "joined_at"> & { id?: string };
         Update: never;
       };
+      lineups: {
+        Row: {
+          id: string;
+          match_id: string;
+          team: string;
+          formation: string | null;
+          players: Json;   // Array<{ name: string; number: number; position: string }>
+          confirmed: boolean;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["lineups"]["Row"], "id" | "created_at"> & { id?: string };
+        Update: Partial<Pick<Database["public"]["Tables"]["lineups"]["Row"], "formation" | "players" | "confirmed">>;
+      };
       confirmed_lineups: {
         Row: {
           id: string;
@@ -184,6 +197,7 @@ export type ChatMessage = Database["public"]["Tables"]["chat_messages"]["Row"];
 export type BracketPrediction = Database["public"]["Tables"]["bracket_predictions"]["Row"];
 export type League = Database["public"]["Tables"]["leagues"]["Row"];
 export type LeagueMember = Database["public"]["Tables"]["league_members"]["Row"];
+export type Lineup = Database["public"]["Tables"]["lineups"]["Row"];
 export type LeaderboardEntry = Database["public"]["Views"]["leaderboard"]["Row"];
 export type ConfirmedLineup = Database["public"]["Tables"]["confirmed_lineups"]["Row"];
 
