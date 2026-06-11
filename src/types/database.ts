@@ -141,7 +141,6 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["league_members"]["Row"], "id" | "joined_at"> & { id?: string };
         Update: never;
       };
-    };
       confirmed_lineups: {
         Row: {
           id: string;

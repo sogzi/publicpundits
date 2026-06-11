@@ -1,211 +1,143 @@
 /**
- * API-Football v3 client (RapidAPI)
- * Docs: https://www.api-football.com/documentation-v3
+ * football-data.org v4 client
+ * Docs: https://www.football-data.org/documentation/quickstart
  *
- * League 1 = FIFA World Cup (all seasons)
- * Season 2026 = FIFA World Cup 2026
+ * Free tier: 10 req/min, access to WC2026
+ * Competition code: WC = FIFA World Cup
  */
 
-const BASE_URL = "https://api-football-v1.p.rapidapi.com/v3";
-const WC_LEAGUE_ID = 1;
-const WC_SEASON = 2026;
+const BASE_URL = "https://api.football-data.org/v4";
 
 function headers() {
   const key = process.env.FOOTBALL_API_KEY;
-  if (!key) throw new Error("FOOTBALL_API_KEY is not set in environment variables");
-  return {
-    "X-RapidAPI-Key": key,
-    "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com",
-    "Content-Type": "application/json",
-  };
+  if (!key) throw new Error("FOOTBALL_API_KEY is not set");
+  return { "X-Auth-Token": key };
 }
 
-async function apiFetch<T>(path: string, params: Record<string, string | number> = {}): Promise<T> {
-  const url = new URL(`${BASE_URL}${path}`);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
-  const res = await fetch(url.toString(), { headers: headers(), cache: "no-store" });
-  if (!res.ok) throw new Error(`API-Football error ${res.status}: ${await res.text()}`);
-  const json = await res.json();
-  if (json.errors && Object.keys(json.errors).length > 0) {
-    throw new Error(`API-Football errors: ${JSON.stringify(json.errors)}`);
+async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: headers(),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`football-data.org ${res.status}: ${text}`);
   }
-  return json.response as T;
+  return res.json() as Promise<T>;
 }
 
 // ─────────────────────────────────────────────
-// TYPES
+// TYPES  (football-data.org v4 shapes)
 // ─────────────────────────────────────────────
 
-export interface ApiFixture {
-  fixture: {
-    id: number;
-    date: string;       // ISO-8601 UTC
-    venue: { id: number | null; name: string | null; city: string | null };
-    status: { long: string; short: string; elapsed: number | null };
-  };
-  league: {
-    id: number;
-    name: string;
-    season: number;
-    round: string;  // "Group Stage - 1", "Round of 16", "Quarter-finals", etc.
-    group: string | null; // "Group A", "Group B", etc.
-  };
-  teams: {
-    home: { id: number; name: string; logo: string; winner: boolean | null };
-    away: { id: number; name: string; logo: string; winner: boolean | null };
-  };
-  goals: { home: number | null; away: number | null };
+export interface FDTeam {
+  id: number;
+  name: string;
+  shortName: string;
+  tla: string;       // 3-letter code e.g. "MEX"
+  crest: string;
+}
+
+export interface FDMatch {
+  id: number;
+  utcDate: string;   // ISO-8601 UTC
+  status: string;    // "TIMED" | "IN_PLAY" | "PAUSED" | "FINISHED" | "SCHEDULED" | "POSTPONED"
+  matchday: number;
+  stage: string;     // "GROUP_STAGE" | "LAST_32" | "LAST_16" | "QUARTER_FINALS" | "SEMI_FINALS" | "THIRD_PLACE" | "FINAL"
+  group: string | null; // "GROUP_A" … "GROUP_L" | null
+  homeTeam: FDTeam;
+  awayTeam: FDTeam;
   score: {
-    halftime: { home: number | null; away: number | null };
-    fulltime: { home: number | null; away: number | null };
-    extratime: { home: number | null; away: number | null };
-    penalty: { home: number | null; away: number | null };
+    winner: "HOME_TEAM" | "AWAY_TEAM" | "DRAW" | null;
+    duration: "REGULAR" | "EXTRA_TIME" | "PENALTY_SHOOTOUT";
+    fullTime: { home: number | null; away: number | null };
+    halfTime: { home: number | null; away: number | null };
   };
+  referees: Array<{ id: number; name: string; type: string; nationality: string }>;
 }
 
-export interface ApiLineup {
-  team: { id: number; name: string; logo: string };
-  coach: { id: number; name: string; photo: string };
+export interface FDLineup {
+  id: number;
   formation: string;
   startXI: Array<{
-    player: { id: number; name: string; number: number; pos: string; grid: string | null };
+    player: { id: number; name: string; position: string; shirtNumber: number };
   }>;
   substitutes: Array<{
-    player: { id: number; name: string; number: number; pos: string; grid: string | null };
+    player: { id: number; name: string; position: string; shirtNumber: number };
   }>;
-}
-
-export interface ApiPlayerStat {
-  team: { id: number; name: string; logo: string };
-  players: Array<{
-    player: { id: number; name: string; photo: string };
-    statistics: Array<{
-      games: {
-        minutes: number | null;
-        number: number;
-        position: string;
-        rating: string | null;
-        captain: boolean;
-        substitute: boolean;
-      };
-      goals: { total: number | null; conceded: number | null; assists: number | null; saves: number | null };
-      shots: { total: number | null; on: number | null };
-      passes: { total: number | null; key: number | null; accuracy: string | null };
-      tackles: { total: number | null; blocks: number | null; interceptions: number | null };
-      dribbles: { attempts: number | null; success: number | null };
-      cards: { yellow: number; red: number };
-    }>;
-  }>;
+  coach: { id: number; name: string };
+  homeTeam?: FDTeam;
+  awayTeam?: FDTeam;
 }
 
 // ─────────────────────────────────────────────
 // PUBLIC FUNCTIONS
 // ─────────────────────────────────────────────
 
-/** Fetch all FIFA World Cup 2026 fixtures */
-export async function getFixtures(): Promise<ApiFixture[]> {
-  return apiFetch<ApiFixture[]>("/fixtures", {
-    league: WC_LEAGUE_ID,
-    season: WC_SEASON,
-  });
+/** All 104 FIFA World Cup 2026 fixtures */
+export async function getFixtures(): Promise<FDMatch[]> {
+  const data = await apiFetch<{ matches: FDMatch[] }>("/competitions/WC/matches");
+  return data.matches;
 }
 
-/** Fetch live scores (all in-progress WC2026 matches) */
-export async function getLiveScores(): Promise<ApiFixture[]> {
-  return apiFetch<ApiFixture[]>("/fixtures", {
-    live: "all",
-    league: WC_LEAGUE_ID,
-    season: WC_SEASON,
-  });
+/** Live / in-progress WC2026 matches */
+export async function getLiveScores(): Promise<FDMatch[]> {
+  const data = await apiFetch<{ matches: FDMatch[] }>(
+    "/competitions/WC/matches?status=IN_PLAY,PAUSED"
+  );
+  return data.matches;
 }
 
-/** Fetch confirmed lineups for a specific fixture */
-export async function getLineups(apiFixtureId: number): Promise<ApiLineup[]> {
-  return apiFetch<ApiLineup[]>("/fixtures/lineups", { fixture: apiFixtureId });
+/** Lineups for a specific match (available ~1h before kickoff) */
+export async function getLineups(matchId: number): Promise<{ homeTeam: FDLineup; awayTeam: FDLineup } | null> {
+  try {
+    const data = await apiFetch<{ homeTeam: FDLineup; awayTeam: FDLineup }>(
+      `/matches/${matchId}/lineups`
+    );
+    return data;
+  } catch {
+    return null;
+  }
 }
 
-/** Fetch player statistics for a specific fixture */
-export async function getPlayerStats(apiFixtureId: number): Promise<ApiPlayerStat[]> {
-  return apiFetch<ApiPlayerStat[]>("/fixtures/players", { fixture: apiFixtureId });
+/** Player stats for a finished match */
+export async function getPlayerStats(matchId: number) {
+  return apiFetch(`/matches/${matchId}`);
 }
 
 // ─────────────────────────────────────────────
 // MAPPING HELPERS
 // ─────────────────────────────────────────────
 
-/** Map API round string → our DB stage enum */
-export function mapStage(round: string): string {
-  const r = round.toLowerCase();
-  if (r.includes("group"))           return "group";
-  if (r.includes("round of 32"))     return "round_of_32";
-  if (r.includes("round of 16"))     return "round_of_16";
-  if (r.includes("quarter"))         return "quarter_final";
-  if (r.includes("semi"))            return "semi_final";
-  if (r.includes("3rd") || r.includes("third") || r.includes("place")) return "third_place";
-  if (r.includes("final"))           return "final";
-  return "group";
+/** football-data.org stage → our DB stage enum */
+export function mapStage(stage: string): string {
+  switch (stage) {
+    case "GROUP_STAGE":   return "group";
+    case "LAST_32":       return "round_of_32";
+    case "LAST_16":       return "round_of_16";
+    case "QUARTER_FINALS": return "quarter_final";
+    case "SEMI_FINALS":   return "semi_final";
+    case "THIRD_PLACE":   return "third_place";
+    case "FINAL":         return "final";
+    default:              return "group";
+  }
 }
 
-/** Map API status.short → our DB status enum */
-export function mapStatus(short: string): "upcoming" | "live" | "finished" {
-  if (["1H", "HT", "2H", "ET", "BT", "P", "INT"].includes(short)) return "live";
-  if (["FT", "AET", "PEN"].includes(short)) return "finished";
-  return "upcoming";
+/** football-data.org status → our DB status */
+export function mapStatus(status: string): "upcoming" | "live" | "finished" {
+  if (["IN_PLAY", "PAUSED", "HALFTIME"].includes(status)) return "live";
+  if (["FINISHED", "AWARDED"].includes(status))            return "finished";
+  return "upcoming"; // TIMED, SCHEDULED, POSTPONED, etc.
 }
 
-/** Extract group letter from league.group string e.g. "Group A" → "A" */
+/** "GROUP_A" → "A", null → null */
 export function mapGroup(group: string | null): string | null {
   if (!group) return null;
-  const match = group.match(/Group\s+([A-Z])/i);
-  return match ? match[1].toUpperCase() : null;
+  const m = group.match(/GROUP_([A-Z]+)/);
+  return m ? m[1] : null;
 }
 
-/** Best-effort FIFA 3-letter code from team name */
-export function teamCode(name: string): string {
-  const overrides: Record<string, string> = {
-    "United States":         "USA",
-    "USA":                   "USA",
-    "South Korea":           "KOR",
-    "Korea Republic":        "KOR",
-    "IR Iran":               "IRN",
-    "Iran":                  "IRN",
-    "Saudi Arabia":          "KSA",
-    "Ivory Coast":           "CIV",
-    "Cote d'Ivoire":         "CIV",
-    "Netherlands":           "NED",
-    "England":               "ENG",
-    "Scotland":              "SCO",
-    "Wales":                 "WAL",
-    "Northern Ireland":      "NIR",
-    "Czech Republic":        "CZE",
-    "Czechia":               "CZE",
-    "Bosnia":                "BIH",
-    "Bosnia and Herzegovina":"BIH",
-    "North Macedonia":       "MKD",
-    "New Zealand":           "NZL",
-    "Costa Rica":            "CRC",
-    "Trinidad and Tobago":   "TTO",
-    "Trinidad & Tobago":     "TTO",
-    "Dominican Republic":    "DOM",
-    "Cape Verde":            "CPV",
-    "DR Congo":              "COD",
-    "Burkina Faso":          "BFA",
-    "Sierra Leone":          "SLE",
-    "Equatorial Guinea":     "GEQ",
-    "Central African Republic": "CAF",
-    "South Africa":          "RSA",
-    "Tanzania":              "TAN",
-    "Zimbabwe":              "ZIM",
-    "Zambia":                "ZAM",
-    "New Caledonia":         "NCL",
-    "Papua New Guinea":      "PNG",
-  };
-  if (overrides[name]) return overrides[name];
-  // Fallback: first 3 chars uppercased
-  return name.replace(/[^a-zA-Z]/g, "").substring(0, 3).toUpperCase();
-}
-
-/** 15-min lock before kickoff */
+/** Lock simultaneous matchday-3 games 15 min before kickoff */
 export function lockTime(kickoffIso: string): string {
   return new Date(new Date(kickoffIso).getTime() - 15 * 60 * 1000).toISOString();
 }

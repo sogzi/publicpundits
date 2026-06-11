@@ -20,7 +20,7 @@ const STAGE_LABEL: Record<Match["stage"], string> = {
   third_place: "3rd Place Play-off",
   final: "Final",
 };
-const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H"];
+const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"];
 
 function formatKickoff(iso: string) {
   return new Intl.DateTimeFormat(undefined, {

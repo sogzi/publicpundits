@@ -5,7 +5,6 @@ import {
   mapStage,
   mapStatus,
   mapGroup,
-  teamCode,
   lockTime,
 } from "@/lib/football-api";
 
@@ -27,26 +26,24 @@ export async function POST(request: Request) {
     const admin = createAdminClient();
 
     const rows = fixtures.map((f) => {
-      const stage = mapStage(f.league.round);
-      const kickoff = f.fixture.date;
-      const isGroupMd3 = stage === "group" && f.league.round.includes("3");
+      const stage = mapStage(f.stage);
+      const kickoff = f.utcDate;
+      // Lock simultaneous group-stage matchday-3 games 15 min early
+      const isGroupMd3 = stage === "group" && f.matchday === 3;
 
       return {
-        api_football_id:      f.fixture.id,
-        home_team:            f.teams.home.name,
-        away_team:            f.teams.away.name,
-        home_team_code:       teamCode(f.teams.home.name),
-        away_team_code:       teamCode(f.teams.away.name),
-        kickoff_at:           kickoff,
+        api_football_id:       f.id,
+        home_team:             f.homeTeam.name  ?? "TBD",
+        away_team:             f.awayTeam.name  ?? "TBD",
+        home_team_code:        f.homeTeam.tla   ?? "TBD",  // null for unresolved knockout fixtures
+        away_team_code:        f.awayTeam.tla   ?? "TBD",
+        kickoff_at:            kickoff,
         stage,
-        group_name:           mapGroup(f.league.group),
-        venue:                f.fixture.venue.name
-                                ? `${f.fixture.venue.name}${f.fixture.venue.city ? ", " + f.fixture.venue.city : ""}`
-                                : null,
-        status:               mapStatus(f.fixture.status.short),
-        home_score:           f.goals.home,
-        away_score:           f.goals.away,
-        // Lock simultaneous group-stage matchday-3 fixtures 15 min early
+        group_name:            mapGroup(f.group),
+        venue:                 null,              // football-data.org free tier omits venue
+        status:                mapStatus(f.status),
+        home_score:            f.score.fullTime.home,
+        away_score:            f.score.fullTime.away,
         predictions_locked_at: isGroupMd3 ? lockTime(kickoff) : null,
       };
     });
@@ -63,7 +60,12 @@ export async function POST(request: Request) {
       total: rows.length,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message =
+      err instanceof Error
+        ? err.message
+        : typeof err === "object" && err !== null
+        ? JSON.stringify(err)
+        : String(err);
     console.error("[sync-fixtures]", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }

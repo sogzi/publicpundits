@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getLineups, teamCode } from "@/lib/football-api";
+import { getLineups } from "@/lib/football-api";
 
 /**
- * Fetches confirmed lineups from API-Football for every match that:
+ * Fetches confirmed lineups from football-data.org for every match that:
  *   - kicks off within the next 60 minutes OR is already live/finished
  *   - has an api_football_id set
- *   - doesn't already have lineups stored
+ *   - doesn't already have both team lineups stored
  *
  * POST /api/sync-lineups
  * Header: Authorization: Bearer <SYNC_SECRET>
  *
- * Designed to be called by a cron job every 5–10 minutes.
+ * Designed to be called by a cron job every 5–10 minutes on matchdays.
+ * football-data.org free tier: 10 req/min — we add a 700 ms delay between matches.
  */
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization") ?? "";
@@ -24,10 +25,10 @@ export async function POST(request: Request) {
     const now = new Date();
     const in60 = new Date(now.getTime() + 60 * 60 * 1000);
 
-    // Find matches kicking off within 60 min, live, or finished — that have an API id
+    // Find matches kicking off within 60 min, live, or finished that have an API id
     const { data: matches, error: matchErr } = await admin
       .from("matches")
-      .select("id, api_football_id, status, kickoff_at, home_team_code, away_team_code")
+      .select("id, api_football_id, status, kickoff_at, home_team_code, away_team_code, home_team, away_team")
       .not("api_football_id", "is", null)
       .or(`status.eq.live,status.eq.finished,and(status.eq.upcoming,kickoff_at.lte.${in60.toISOString()})`);
 
@@ -63,22 +64,36 @@ export async function POST(request: Request) {
 
     for (const match of toSync) {
       try {
+        // getLineups returns { homeTeam: FDLineup, awayTeam: FDLineup } | null
         const lineups = await getLineups(match.api_football_id!);
-        if (!lineups.length) {
+
+        if (!lineups) {
           results.push({ matchId: match.id, status: "not_available_yet" });
           continue;
         }
 
-        const rows = lineups.map((l) => ({
-          match_id:   match.id,
-          team_code:  teamCode(l.team.name),
-          team_name:  l.team.name,
-          formation:  l.formation ?? null,
-          start_xi:   l.startXI.map((p) => p.player),
-          substitutes: l.substitutes.map((p) => p.player),
-          coach:      l.coach?.name ?? null,
-          fetched_at: new Date().toISOString(),
-        }));
+        const rows = [
+          {
+            match_id:    match.id,
+            team_code:   match.home_team_code,
+            team_name:   match.home_team,
+            formation:   lineups.homeTeam.formation ?? null,
+            start_xi:    lineups.homeTeam.startXI.map((p) => p.player),
+            substitutes: lineups.homeTeam.substitutes.map((p) => p.player),
+            coach:       lineups.homeTeam.coach?.name ?? null,
+            fetched_at:  new Date().toISOString(),
+          },
+          {
+            match_id:    match.id,
+            team_code:   match.away_team_code,
+            team_name:   match.away_team,
+            formation:   lineups.awayTeam.formation ?? null,
+            start_xi:    lineups.awayTeam.startXI.map((p) => p.player),
+            substitutes: lineups.awayTeam.substitutes.map((p) => p.player),
+            coach:       lineups.awayTeam.coach?.name ?? null,
+            fetched_at:  new Date().toISOString(),
+          },
+        ];
 
         const { error } = await admin
           .from("confirmed_lineups")
@@ -87,7 +102,7 @@ export async function POST(request: Request) {
         if (error) throw error;
         results.push({ matchId: match.id, status: "synced", teams: rows.length });
 
-        // Small delay to respect API rate limits (100 req/min on free plan)
+        // Respect football-data.org free tier: 10 req/min
         await new Promise((r) => setTimeout(r, 700));
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -95,7 +110,10 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ results, synced: results.filter((r) => r.status === "synced").length });
+    return NextResponse.json({
+      results,
+      synced: results.filter((r) => r.status === "synced").length,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[sync-lineups]", message);
