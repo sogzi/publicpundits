@@ -47,7 +47,14 @@ export function OverviewTab({ match, platformPrediction, userScorePrediction, us
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-lg">🤖</span>
-            <h3 className="font-bold text-sm text-gray-900">Our Prediction</h3>
+            <div>
+              <h3 className="font-bold text-sm text-gray-900">
+                {match.status === "upcoming" ? "Our Prediction" : "Our Pre-match Prediction"}
+              </h3>
+              {match.status !== "upcoming" && (
+                <p className="text-[10px] text-gray-400 mt-0.5">Generated before kickoff</p>
+              )}
+            </div>
           </div>
 
           {platformPrediction ? (

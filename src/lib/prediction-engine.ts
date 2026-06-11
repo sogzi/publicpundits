@@ -218,7 +218,16 @@ export interface PredictionResult {
   reasoning:  string;
 }
 
-export async function generatePrediction(matchId: string): Promise<PredictionResult> {
+export interface GenerateOptions {
+  /**
+   * fastMode: skip external API calls (form + H2H).
+   * Uses only FIFA rankings + stage weight.
+   * Safe for bulk generation — no rate-limit risk.
+   */
+  fastMode?: boolean;
+}
+
+export async function generatePrediction(matchId: string, opts: GenerateOptions = {}): Promise<PredictionResult> {
   const admin = createAdminClient();
 
   // ── 1. Load match + team FD ids from Supabase ──────────────────────────────
@@ -248,18 +257,21 @@ export async function generatePrediction(matchId: string): Promise<PredictionRes
   const homeRank = FIFA_RANKINGS[match.home_team_code] ?? 40;
   const awayRank = FIFA_RANKINGS[match.away_team_code] ?? 40;
 
-  // ── 3. Form (parallel fetch) ───────────────────────────────────────────────
-  const [homeForm, awayForm] = await Promise.all([
-    homeSquad?.team_fd_id
-      ? getRecentForm(homeSquad.team_fd_id, match.home_team_code)
-      : Promise.resolve({ pts: 7, played: 5, wins: 2, draws: 1, losses: 2, goalsFor: 5, goalsAgainst: 4, label: "unavailable" }),
-    awaySquad?.team_fd_id
-      ? getRecentForm(awaySquad.team_fd_id, match.away_team_code)
-      : Promise.resolve({ pts: 7, played: 5, wins: 2, draws: 1, losses: 2, goalsFor: 5, goalsAgainst: 4, label: "unavailable" }),
-  ]);
+  // ── 3. Form (parallel fetch — skipped in fastMode) ────────────────────────
+  const defaultForm = { pts: 7, played: 5, wins: 2, draws: 1, losses: 2, goalsFor: 5, goalsAgainst: 4, label: "not fetched (fast mode)" };
+  const [homeForm, awayForm] = opts.fastMode
+    ? [defaultForm, defaultForm]
+    : await Promise.all([
+        homeSquad?.team_fd_id
+          ? getRecentForm(homeSquad.team_fd_id, match.home_team_code)
+          : Promise.resolve(defaultForm),
+        awaySquad?.team_fd_id
+          ? getRecentForm(awaySquad.team_fd_id, match.away_team_code)
+          : Promise.resolve(defaultForm),
+      ]);
 
-  // ── 4. H2H (only if we have both FD ids) ──────────────────────────────────
-  const h2h = homeSquad?.team_fd_id && awaySquad?.team_fd_id
+  // ── 4. H2H (skipped in fastMode) ──────────────────────────────────────────
+  const h2h = (!opts.fastMode && homeSquad?.team_fd_id && awaySquad?.team_fd_id)
     ? await getH2H(homeSquad.team_fd_id, awaySquad.team_fd_id, match.home_team_code)
     : { homeWins: 0, awayWins: 0, draws: 0, played: 0, label: "H2H unavailable" };
 
@@ -296,7 +308,9 @@ export async function generatePrediction(matchId: string): Promise<PredictionRes
     ? `${match.away_team} (ranked #${awayRank}) are the higher-ranked side against ${match.home_team} (ranked #${homeRank}).`
     : `Both teams are evenly ranked (#${homeRank}).`;
 
-  const formSentence = `Recent form — ${match.home_team}: ${homeForm.label}; ${match.away_team}: ${awayForm.label}.`;
+  const formSentence = opts.fastMode
+    ? `Prediction based on FIFA rankings and stage weighting (form data not fetched).`
+    : `Recent form — ${match.home_team}: ${homeForm.label}; ${match.away_team}: ${awayForm.label}.`;
 
   const h2hSentence = h2h.played > 0
     ? `Head-to-head (last ${h2h.played}): ${h2h.label}.`
