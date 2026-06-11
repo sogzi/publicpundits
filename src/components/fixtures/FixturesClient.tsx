@@ -137,6 +137,12 @@ export function FixturesClient({ matches }: Props) {
     for (const m of filtered) {
       map[m.stage] = [...(map[m.stage] ?? []), m];
     }
+    // Ensure each stage's matches are sorted chronologically
+    for (const stage of Object.keys(map) as Match["stage"][]) {
+      map[stage]!.sort(
+        (a, b) => new Date(a.kickoff_at).getTime() - new Date(b.kickoff_at).getTime()
+      );
+    }
     return map;
   }, [filtered]);
 
@@ -199,7 +205,9 @@ export function FixturesClient({ matches }: Props) {
             {stage === "group" ? (
               <div className="space-y-6">
                 {GROUPS.filter((g) => grouped.group?.some((m) => m.group_name === g)).map((g) => {
-                  const gMatches = grouped.group!.filter((m) => m.group_name === g);
+                  const gMatches = grouped.group!
+                    .filter((m) => m.group_name === g)
+                    .sort((a, b) => new Date(a.kickoff_at).getTime() - new Date(b.kickoff_at).getTime());
                   return (
                     <div key={g}>
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">

@@ -141,6 +141,18 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["league_members"]["Row"], "id" | "joined_at"> & { id?: string };
         Update: never;
       };
+      squads: {
+        Row: {
+          id: string;
+          team_code: string;
+          team_name: string;
+          team_fd_id: number;
+          players: Json;  // Array<{ id, name, position, positionFull, shirtNumber, dateOfBirth, nationality }>
+          synced_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["squads"]["Row"], "id"> & { id?: string };
+        Update: Partial<Pick<Database["public"]["Tables"]["squads"]["Row"], "players" | "synced_at">>;
+      };
       lineups: {
         Row: {
           id: string;
@@ -198,6 +210,17 @@ export type BracketPrediction = Database["public"]["Tables"]["bracket_prediction
 export type League = Database["public"]["Tables"]["leagues"]["Row"];
 export type LeagueMember = Database["public"]["Tables"]["league_members"]["Row"];
 export type Lineup = Database["public"]["Tables"]["lineups"]["Row"];
+export type Squad = Database["public"]["Tables"]["squads"]["Row"];
+
+export interface SquadPlayer {
+  id: number;
+  name: string;
+  position: "GK" | "DEF" | "MID" | "FWD";
+  positionFull: string;
+  shirtNumber: number | null;
+  dateOfBirth: string;
+  nationality: string;
+}
 export type LeaderboardEntry = Database["public"]["Views"]["leaderboard"]["Row"];
 export type ConfirmedLineup = Database["public"]["Tables"]["confirmed_lineups"]["Row"];
 

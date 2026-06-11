@@ -105,6 +105,41 @@ export async function getPlayerStats(matchId: number) {
   return apiFetch(`/matches/${matchId}`);
 }
 
+export interface FDSquadPlayer {
+  id: number;
+  name: string;
+  position: string;       // "Goalkeeper" | "Defence" | "Midfield" | "Offence"
+  dateOfBirth: string;
+  nationality: string;
+  shirtNumber: number | null;
+}
+
+export interface FDSquadTeam {
+  id: number;
+  name: string;
+  shortName: string;
+  tla: string;
+  crest: string;
+  squad: FDSquadPlayer[];
+}
+
+/** All 48 WC2026 teams with their squads (single API call) */
+export async function getSquads(): Promise<FDSquadTeam[]> {
+  const data = await apiFetch<{ teams: FDSquadTeam[] }>("/competitions/WC/teams?season=2026");
+  return data.teams;
+}
+
+/** Map football-data.org position label → short form */
+export function mapPosition(position: string): "GK" | "DEF" | "MID" | "FWD" {
+  switch (position) {
+    case "Goalkeeper": return "GK";
+    case "Defence":    return "DEF";
+    case "Midfield":   return "MID";
+    case "Offence":    return "FWD";
+    default:           return "MID";
+  }
+}
+
 // ─────────────────────────────────────────────
 // MAPPING HELPERS
 // ─────────────────────────────────────────────
