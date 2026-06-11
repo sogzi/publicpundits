@@ -130,7 +130,7 @@ export function PredictTab({ match, userId, existing, homeLineupPlayers, awayLin
                 type="number" min={0} max={20} required
                 value={homeScore}
                 onChange={(e) => setHomeScore(e.target.value)}
-                className="w-16 h-16 rounded-xl text-center text-3xl font-black border-2 border-gray-200 focus:outline-none ml-auto block"
+                className="w-16 h-16 rounded-xl text-center text-3xl font-black text-gray-900 bg-white border-2 border-gray-200 focus:outline-none ml-auto block"
                 style={{ borderColor: homeScore !== "" ? BRAND : undefined }}
               />
             </div>
@@ -142,7 +142,7 @@ export function PredictTab({ match, userId, existing, homeLineupPlayers, awayLin
                 type="number" min={0} max={20} required
                 value={awayScore}
                 onChange={(e) => setAwayScore(e.target.value)}
-                className="w-16 h-16 rounded-xl text-center text-3xl font-black border-2 border-gray-200 focus:outline-none"
+                className="w-16 h-16 rounded-xl text-center text-3xl font-black text-gray-900 bg-white border-2 border-gray-200 focus:outline-none"
                 style={{ borderColor: awayScore !== "" ? BRAND : undefined }}
               />
             </div>
@@ -178,7 +178,7 @@ export function PredictTab({ match, userId, existing, homeLineupPlayers, awayLin
                   <select
                     value={formation}
                     onChange={(e) => { setForm(e.target.value); (side === "home" ? setHomeSlots : setAwaySlots)(defaultSlots(e.target.value)); }}
-                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-700 bg-white"
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-900 bg-white"
                   >
                     {FORMATIONS.map((f) => <option key={f} value={f}>{f}</option>)}
                   </select>

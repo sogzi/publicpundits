@@ -184,7 +184,7 @@ export function LineupPredictionForm({ match, userId, teamCode, teamName, existi
                 onChange={(e) => updatePlayer(idx, "name", e.target.value)}
                 placeholder={`Player ${idx + 1}`}
                 disabled={locked}
-                className="flex-1 rounded border border-gray-600 bg-[#162920] text-white text-xs px-2 py-1.5 min-w-0 placeholder-gray-600"
+                className="flex-1 rounded border border-gray-600 bg-[#162920] text-white text-xs px-2 py-1.5 min-w-0 placeholder-gray-500"
               />
             )}
           </div>
