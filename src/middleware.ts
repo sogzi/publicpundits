@@ -29,10 +29,11 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isAuthPage = request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/register");
+  const pathname = request.nextUrl.pathname;
+  const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/register");
+  const isPublicPage = pathname === "/" || pathname.startsWith("/_next") || pathname.startsWith("/api/auth");
 
-  if (!user && !isAuthPage) {
+  if (!user && !isAuthPage && !isPublicPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
