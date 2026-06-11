@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Mic, Star, Users, MessageSquare, BarChart2, Trophy, CheckSquare, Menu, X, ArrowRight, Zap } from "lucide-react";
+import { Mic, Star, Users, MessageSquare, BarChart2, CheckSquare, Menu, X, ArrowRight, Zap } from "lucide-react";
 
 const BRAND = "#1D9E75";
 
@@ -67,7 +67,6 @@ export default function LandingPage() {
       {/* ── NAVBAR ── */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-          {/* Logo */}
           <Link href="/" className="flex items-center gap-2 font-bold text-base">
             <span className="w-7 h-7 rounded-md flex items-center justify-center" style={{ backgroundColor: BRAND }}>
               <Mic className="w-4 h-4 text-white" />
@@ -75,7 +74,6 @@ export default function LandingPage() {
             <span>Public Pundits</span>
           </Link>
 
-          {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-2">
             <Link
               href="/login"
@@ -92,13 +90,11 @@ export default function LandingPage() {
             </Link>
           </nav>
 
-          {/* Mobile toggle */}
           <button className="md:hidden p-1" onClick={() => setMenuOpen(!menuOpen)}>
             {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
 
-        {/* Mobile menu */}
         {menuOpen && (
           <div className="md:hidden border-t border-gray-100 px-4 py-3 flex flex-col gap-2 bg-white">
             <Link href="/login" onClick={() => setMenuOpen(false)}
@@ -116,7 +112,6 @@ export default function LandingPage() {
 
       {/* ── HERO ── */}
       <section className="max-w-6xl mx-auto px-4 pt-20 pb-16 text-center">
-        {/* Badge */}
         <span className="inline-flex items-center gap-1.5 border border-gray-200 rounded-full px-3 py-1 text-xs font-medium text-gray-600 mb-8">
           <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: BRAND }} />
           World Cup 2026
@@ -164,27 +159,53 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── FEATURES ── */}
-      <section className="max-w-6xl mx-auto px-4 py-20">
-        <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase mb-8">What you can do</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {features.map(({ icon: Icon, color, title, desc }) => (
-            <div key={title} className="bg-gray-900 rounded-xl p-5 flex flex-col gap-3">
-              <span className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ backgroundColor: color + "22" }}>
-                <Icon className="w-5 h-5" style={{ color }} />
-              </span>
-              <div>
-                <p className="font-semibold text-white text-sm mb-1">{title}</p>
-                <p className="text-gray-400 text-sm leading-relaxed">{desc}</p>
+      {/* ── FEATURES — photo background with dark overlay ── */}
+      <section
+        className="relative py-20"
+        style={{
+          backgroundImage: "url('/hero-fans.jpg')",
+          backgroundSize: "cover",
+          backgroundPosition: "center 30%",
+        }}
+      >
+        {/* dark overlay so cards remain readable */}
+        <div
+          className="absolute inset-0"
+          style={{ backgroundColor: "rgba(5,15,10,0.82)" }}
+        />
+
+        <div className="relative z-10 max-w-6xl mx-auto px-4">
+          <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase mb-8">
+            What you can do
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {features.map(({ icon: Icon, color, title, desc }) => (
+              <div
+                key={title}
+                className="rounded-xl p-5 flex flex-col gap-3"
+                style={{ backgroundColor: "rgba(17,24,18,0.85)", backdropFilter: "blur(6px)" }}
+              >
+                <span
+                  className="w-9 h-9 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: color + "22" }}
+                >
+                  <Icon className="w-5 h-5" style={{ color }} />
+                </span>
+                <div>
+                  <p className="font-semibold text-white text-sm mb-1">{title}</p>
+                  <p className="text-gray-400 text-sm leading-relaxed">{desc}</p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ── HOW IT WORKS ── */}
-      <section className="max-w-6xl mx-auto px-4 pb-20">
-        <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase mb-10">How it works</p>
+      <section className="max-w-6xl mx-auto px-4 py-20">
+        <p className="text-xs font-semibold tracking-widest text-gray-400 uppercase mb-10">
+          How it works
+        </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-10 sm:gap-6">
           {steps.map(({ n, title, desc }) => (
             <div key={n} className="flex flex-col items-center text-center gap-4">

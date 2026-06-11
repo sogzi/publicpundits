@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Trophy, Calendar, BarChart2, GitBranch, Users, User, LogOut, Menu, X } from "lucide-react";
+import { Trophy, Calendar, List, BarChart2, GitBranch, Users, User, LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
-  { href: "/matches",     label: "Matches",     icon: Calendar },
+  { href: "/fixtures",    label: "Fixtures",    icon: List },
+  { href: "/matches",     label: "Predictions", icon: Calendar },
   { href: "/leaderboard", label: "Leaderboard", icon: BarChart2 },
   { href: "/bracket",     label: "Bracket",     icon: GitBranch },
   { href: "/leagues",     label: "Leagues",     icon: Users },

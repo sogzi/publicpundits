@@ -231,16 +231,6 @@ create table public.leagues (
 
 alter table public.leagues enable row level security;
 
-create policy "leagues_select_member"
-  on public.leagues for select
-  using (
-    is_public = true
-    or owner_id = auth.uid()
-    or exists (
-      select 1 from public.league_members lm
-      where lm.league_id = id and lm.user_id = auth.uid()
-    )
-  );
 create policy "leagues_insert_auth"
   on public.leagues for insert with check (auth.uid() = owner_id);
 create policy "leagues_update_owner"
@@ -275,6 +265,18 @@ create policy "league_members_insert_self"
   on public.league_members for insert with check (auth.uid() = user_id);
 create policy "league_members_delete_self"
   on public.league_members for delete using (auth.uid() = user_id);
+
+-- leagues_select_member added here so league_members table already exists
+create policy "leagues_select_member"
+  on public.leagues for select
+  using (
+    is_public = true
+    or owner_id = auth.uid()
+    or exists (
+      select 1 from public.league_members lm
+      where lm.league_id = id and lm.user_id = auth.uid()
+    )
+  );
 
 -- ============================================================
 -- LEADERBOARD VIEW
