@@ -150,7 +150,7 @@ export function BanterTab({ matchId, userId, initialMessages }: Props) {
               onChange={(e) => setText(e.target.value)}
               placeholder="Say something…"
               maxLength={500}
-              className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:border-emerald-400"
+              className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:border-emerald-400"
             />
             <button
               type="submit"
