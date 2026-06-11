@@ -33,7 +33,7 @@ export default async function FixturesPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-black text-gray-900">Fixtures</h1>
         <p className="text-sm text-gray-500 mt-1">
-          All 64 FIFA World Cup 2026 matches · Kickoff times in UK (BST)
+          All 64 FIFA World Cup 2026 matches · Times shown in your local timezone
         </p>
       </div>
       <FixturesClient matches={matches ?? []} />

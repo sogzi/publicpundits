@@ -29,11 +29,12 @@ export interface Database {
           home_score: number | null;
           away_score: number | null;
           kickoff_at: string;
-          stage: "group" | "round_of_16" | "quarter_final" | "semi_final" | "third_place" | "final";
+          stage: "group" | "round_of_32" | "round_of_16" | "quarter_final" | "semi_final" | "third_place" | "final";
           group_name: string | null;
           venue: string | null;
           status: "upcoming" | "live" | "finished";
           predictions_locked_at: string | null;
+          api_football_id: number | null;
           created_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["matches"]["Row"], "id" | "created_at"> & { id?: string };
@@ -141,6 +142,22 @@ export interface Database {
         Update: never;
       };
     };
+      confirmed_lineups: {
+        Row: {
+          id: string;
+          match_id: string;
+          team_code: string;
+          team_name: string;
+          formation: string | null;
+          start_xi: Json;
+          substitutes: Json;
+          coach: string | null;
+          fetched_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["confirmed_lineups"]["Row"], "id" | "fetched_at"> & { id?: string; fetched_at?: string };
+        Update: Partial<Omit<Database["public"]["Tables"]["confirmed_lineups"]["Insert"], "match_id" | "team_code">>;
+      };
+    };
     Views: {
       leaderboard: {
         Row: {
@@ -169,6 +186,7 @@ export type BracketPrediction = Database["public"]["Tables"]["bracket_prediction
 export type League = Database["public"]["Tables"]["leagues"]["Row"];
 export type LeagueMember = Database["public"]["Tables"]["league_members"]["Row"];
 export type LeaderboardEntry = Database["public"]["Views"]["leaderboard"]["Row"];
+export type ConfirmedLineup = Database["public"]["Tables"]["confirmed_lineups"]["Row"];
 
 export interface LineupPlayer {
   name: string;

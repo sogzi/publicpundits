@@ -9,10 +9,11 @@ import type { Match } from "@/types/database";
 const BRAND = "#1D9E75";
 
 const STAGE_ORDER: Match["stage"][] = [
-  "group", "round_of_16", "quarter_final", "semi_final", "third_place", "final",
+  "group", "round_of_32", "round_of_16", "quarter_final", "semi_final", "third_place", "final",
 ];
 const STAGE_LABEL: Record<Match["stage"], string> = {
   group: "Group Stage",
+  round_of_32: "Round of 32",
   round_of_16: "Round of 16",
   quarter_final: "Quarter-finals",
   semi_final: "Semi-finals",
@@ -21,14 +22,14 @@ const STAGE_LABEL: Record<Match["stage"], string> = {
 };
 const GROUPS = ["A", "B", "C", "D", "E", "F", "G", "H"];
 
-function formatKickoffUK(iso: string) {
-  return new Intl.DateTimeFormat("en-GB", {
+function formatKickoff(iso: string) {
+  return new Intl.DateTimeFormat(undefined, {
     weekday: "short",
     day: "numeric",
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Europe/London",
+    hour12: false,
     timeZoneName: "short",
   }).format(new Date(iso));
 }
@@ -70,7 +71,7 @@ function MatchCard({ match }: { match: Match }) {
     >
       {/* top row: date + status */}
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs text-gray-400">{formatKickoffUK(match.kickoff_at)}</span>
+        <span className="text-xs text-gray-400">{formatKickoff(match.kickoff_at)}</span>
         {isLive && <Badge variant="live">LIVE</Badge>}
         {isFinished && <Badge variant="secondary">FT</Badge>}
         {!isLive && !isFinished && (
