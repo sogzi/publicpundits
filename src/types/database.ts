@@ -141,6 +141,19 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["league_members"]["Row"], "id" | "joined_at"> & { id?: string };
         Update: never;
       };
+      platform_predictions: {
+        Row: {
+          id: string;
+          match_id: string;
+          home_score: number;
+          away_score: number;
+          confidence: number;   // 0–100
+          reasoning: string;
+          generated_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["platform_predictions"]["Row"], "id" | "generated_at"> & { id?: string; generated_at?: string };
+        Update: Partial<Pick<Database["public"]["Tables"]["platform_predictions"]["Row"], "home_score" | "away_score" | "confidence" | "reasoning" | "generated_at">>;
+      };
       squads: {
         Row: {
           id: string;
@@ -211,6 +224,7 @@ export type League = Database["public"]["Tables"]["leagues"]["Row"];
 export type LeagueMember = Database["public"]["Tables"]["league_members"]["Row"];
 export type Lineup = Database["public"]["Tables"]["lineups"]["Row"];
 export type Squad = Database["public"]["Tables"]["squads"]["Row"];
+export type PlatformPrediction = Database["public"]["Tables"]["platform_predictions"]["Row"];
 
 export interface SquadPlayer {
   id: number;
