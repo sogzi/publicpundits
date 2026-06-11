@@ -11,16 +11,29 @@ export type FixtureSeed = {
   predictions_locked_at?: string;
 };
 
-// Flag emoji lookup (used by UI layer)
+// Flag emoji lookup — all 48 WC2026 participants
 export const FLAG: Record<string, string> = {
-  MEX: "🇲🇽", POL: "🇵🇱", KSA: "🇸🇦", ARG: "🇦🇷",
-  USA: "🇺🇸", ENG: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", IRN: "🇮🇷", NED: "🇳🇱",
-  CAN: "🇨🇦", BEL: "🇧🇪", MAR: "🇲🇦", CRO: "🇭🇷",
-  FRA: "🇫🇷", AUS: "🇦🇺", DEN: "🇩🇰", TUN: "🇹🇳",
-  ESP: "🇪🇸", CRC: "🇨🇷", GER: "🇩🇪", JPN: "🇯🇵",
-  BRA: "🇧🇷", SUI: "🇨🇭", SRB: "🇷🇸", CMR: "🇨🇲",
-  POR: "🇵🇹", GHA: "🇬🇭", KOR: "🇰🇷", URU: "🇺🇾",
-  SEN: "🇸🇳", ECU: "🇪🇨", QAT: "🇶🇦", WAL: "🏴󠁧󠁢󠁷󠁬󠁳󠁿",
+  // Americas
+  ARG: "🇦🇷", BRA: "🇧🇷", MEX: "🇲🇽", USA: "🇺🇸",
+  CAN: "🇨🇦", URY: "🇺🇾", COL: "🇨🇴", ECU: "🇪🇨",
+  PAR: "🇵🇾", PAN: "🇵🇦", HAI: "🇭🇹", CUW: "🇨🇼",
+  // Europe
+  FRA: "🇫🇷", ENG: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", ESP: "🇪🇸", GER: "🇩🇪",
+  POR: "🇵🇹", NED: "🇳🇱", BEL: "🇧🇪", CRO: "🇭🇷",
+  SUI: "🇨🇭", AUT: "🇦🇹", TUR: "🇹🇷", POL: "🇵🇱",
+  SWE: "🇸🇪", NOR: "🇳🇴", SCO: "🏴󠁧󠁢󠁳󠁣󠁴󠁿", CZE: "🇨🇿",
+  BIH: "🇧🇦",
+  // Africa
+  MAR: "🇲🇦", SEN: "🇸🇳", EGY: "🇪🇬", GHA: "🇬🇭",
+  RSA: "🇿🇦", TUN: "🇹🇳", CIV: "🇨🇮", ALG: "🇩🇿",
+  COD: "🇨🇩", CPV: "🇨🇻",
+  // Asia
+  JPN: "🇯🇵", KOR: "🇰🇷", IRN: "🇮🇷", KSA: "🇸🇦",
+  AUS: "🇦🇺", QAT: "🇶🇦", JOR: "🇯🇴", IRQ: "🇮🇶",
+  UZB: "🇺🇿",
+  // Legacy / other
+  NZL: "🇳🇿", SRB: "🇷🇸", DEN: "🇩🇰", WAL: "🏴󠁧󠁢󠁷󠁬󠁳󠁿",
+  CMR: "🇨🇲", CRC: "🇨🇷",
   TBD: "🏳️",
 };
 
