@@ -35,7 +35,8 @@ export async function middleware(request: NextRequest) {
     pathname === "/" ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/sync-");  // sync routes are protected by SYNC_SECRET, not session
+    pathname.startsWith("/api/sync-") ||          // sync routes — protected by SYNC_SECRET
+    pathname.startsWith("/api/predictions/");     // prediction routes — protected by SYNC_SECRET
 
   if (!user && !isAuthPage && !isPublicPage) {
     const url = request.nextUrl.clone();
