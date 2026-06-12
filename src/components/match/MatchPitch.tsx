@@ -30,7 +30,7 @@ export interface PitchPlayerData {
 interface TeamData {
   teamName:  string;
   teamCode:  string;
-  formation: string;
+  formation: string | null;
   starters:  PitchPlayerData[];
   subs:      PitchPlayerData[];
 }
@@ -47,7 +47,8 @@ const BRAND = "#1D9E75";
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Parse "4-3-3" → [1, 4, 3, 3] (GK + outfield rows) */
-function parseFormation(f: string): number[] {
+function parseFormation(f: string | null | undefined): number[] {
+  if (!f) return [1, 4, 3, 3]; // default when formation not available
   const parts = f.split("-").map(Number).filter((n) => !isNaN(n) && n > 0);
   return parts.length >= 2 ? [1, ...parts] : [1, 4, 3, 3];
 }
@@ -56,7 +57,7 @@ function parseFormation(f: string): number[] {
  * Assign players to rows using their grid field ("row:col") if present.
  * Falls back to sequential assignment from the formation array.
  */
-function assignRows(players: PitchPlayerData[], formation: string): PitchPlayerData[][] {
+function assignRows(players: PitchPlayerData[], formation: string | null): PitchPlayerData[][] {
   const rowSizes = parseFormation(formation);
   const totalRows = rowSizes.length;
 
@@ -201,12 +202,12 @@ export function MatchPitch({ home, away }: Props) {
       <div className="flex justify-between items-center px-1">
         <div className="text-center">
           <p className="text-xs text-gray-500 font-medium">{home.teamName}</p>
-          <p className="text-xl font-black text-gray-900">{home.formation}</p>
+          <p className="text-xl font-black text-gray-900">{home.formation ?? "—"}</p>
         </div>
         <span className="text-xs text-gray-300 font-medium">vs</span>
         <div className="text-center">
           <p className="text-xs text-gray-500 font-medium">{away.teamName}</p>
-          <p className="text-xl font-black text-gray-900">{away.formation}</p>
+          <p className="text-xl font-black text-gray-900">{away.formation ?? "—"}</p>
         </div>
       </div>
 
