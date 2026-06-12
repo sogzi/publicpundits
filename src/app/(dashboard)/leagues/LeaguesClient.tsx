@@ -121,7 +121,7 @@ function LeagueModal({ userId, onClose, onCreated, onJoined }: {
       .insert({ name: name.trim(), owner_id: userId })
       .select()
       .single();
-    if (err || !data) { setError("Could not create league. Try again."); setLoading(false); return; }
+    if (err || !data) { setError(err?.message ?? "Could not create league. Try again."); setLoading(false); return; }
     // Also add creator as a member
     await (supabase.from("league_members") as any).insert({ league_id: data.id, user_id: userId });
     onCreated({ id: data.id, name: data.name, invite_code: data.invite_code, owner_id: data.owner_id, member_count: 1, user_rank: 1 });
