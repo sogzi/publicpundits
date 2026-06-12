@@ -1,10 +1,6 @@
 # Supabase project configuration
 # Docs: https://supabase.com/docs/guides/cli/config
 
-[project]
-# Find your project ref in: Supabase Dashboard → Project Settings → General → Reference ID
-# Replace the placeholder below with your actual project ref.
-id = "your-project-ref"
 
 [api]
 enabled = true
