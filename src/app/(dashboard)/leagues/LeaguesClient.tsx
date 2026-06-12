@@ -277,6 +277,13 @@ export function LeaguesClient({ userId, leagues: initial }: Props) {
                 {leagues.length} {leagues.length === 1 ? "league" : "leagues"}
               </p>
             </div>
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90"
+              style={{ backgroundColor: BRAND }}
+            >
+              <span className="text-lg leading-none">+</span> New League
+            </button>
           </div>
         )}
 
