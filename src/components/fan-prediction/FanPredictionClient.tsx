@@ -162,10 +162,17 @@ export function FanPredictionClient({ matches, predMap }: Props) {
     for (const m of filtered) {
       map[m.stage] = [...(map[m.stage] ?? []), m];
     }
+
+    // Sort: upcoming first (soonest kickoff), live next, finished last
+    const statusWeight = (m: Match) =>
+      m.status === "upcoming" ? 0 : m.status === "live" ? 1 : 2;
+
     for (const stage of Object.keys(map) as Match["stage"][]) {
-      map[stage]!.sort(
-        (a, b) => new Date(a.kickoff_at).getTime() - new Date(b.kickoff_at).getTime()
-      );
+      map[stage]!.sort((a, b) => {
+        const sw = statusWeight(a) - statusWeight(b);
+        if (sw !== 0) return sw;
+        return new Date(a.kickoff_at).getTime() - new Date(b.kickoff_at).getTime();
+      });
     }
     return map;
   }, [filtered]);
@@ -229,9 +236,15 @@ export function FanPredictionClient({ matches, predMap }: Props) {
             {stage === "group" ? (
               <div className="space-y-6">
                 {GROUPS.filter((g) => grouped.group?.some((m) => m.group_name === g)).map((g) => {
+                  const statusWeight = (m: Match) =>
+                    m.status === "upcoming" ? 0 : m.status === "live" ? 1 : 2;
                   const gMatches = grouped.group!
                     .filter((m) => m.group_name === g)
-                    .sort((a, b) => new Date(a.kickoff_at).getTime() - new Date(b.kickoff_at).getTime());
+                    .sort((a, b) => {
+                      const sw = statusWeight(a) - statusWeight(b);
+                      if (sw !== 0) return sw;
+                      return new Date(a.kickoff_at).getTime() - new Date(b.kickoff_at).getTime();
+                    });
                   return (
                     <div key={g}>
                       <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">
