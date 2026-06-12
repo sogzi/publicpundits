@@ -76,8 +76,8 @@ export function PitchGrid({ formation, players, editable, squad = [], onPickPlay
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2/3 h-1/4 border border-white/15 border-t-0" />
       </div>
 
-      {/* Player rows */}
-      <div className={`relative z-10 flex flex-col justify-around h-full py-3 ${compact ? "gap-1" : "gap-2"}`}>
+      {/* Player rows — no z-index here so dropdown z-50 is evaluated in the global context, above the z-40 backdrop */}
+      <div className={`relative flex flex-col justify-around h-full py-3 ${compact ? "gap-1" : "gap-2"}`}>
         {displayRows.map(({ rowPlayers, startIdx }, rowIdx) => (
           <div key={rowIdx} className="flex justify-around items-center px-2">
             {rowPlayers.map((player, colIdx) => {
@@ -88,7 +88,7 @@ export function PitchGrid({ formation, players, editable, squad = [], onPickPlay
                   <button
                     type="button"
                     disabled={!editable}
-                    onClick={() => editable && setOpenSlot(openSlot === globalIdx ? null : globalIdx)}
+                    onClick={(e) => { e.stopPropagation(); editable && setOpenSlot(openSlot === globalIdx ? null : globalIdx); }}
                     className={`${dotSize} rounded-full border-2 flex flex-col items-center justify-center font-bold transition-all ${
                       editable ? "cursor-pointer hover:scale-110 active:scale-95" : "cursor-default"
                     } ${isEmpty
@@ -122,7 +122,8 @@ export function PitchGrid({ formation, players, editable, squad = [], onPickPlay
                                 key={sp.id}
                                 type="button"
                                 disabled={pickedNames.has(sp.name) && sp.name !== player?.name}
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   onPickPlayer?.(globalIdx, sp);
                                   setOpenSlot(null);
                                 }}
