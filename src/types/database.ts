@@ -198,12 +198,20 @@ export interface Database {
     Views: {
       leaderboard: {
         Row: {
-          id: string;
-          username: string;
-          display_name: string | null;
-          avatar_url: string | null;
-          country_code: string | null;
-          total_points: number;
+          id:               string;
+          username:         string;
+          display_name:     string | null;
+          avatar_url:       string | null;
+          country_code:     string | null;
+          total_points:     number;
+          correct_scores:   number;
+          correct_outcomes: number;
+          recent_form:      Array<{
+            points:          number | null;
+            match_id:        string;
+            correct_score:   boolean | null;
+            correct_outcome: boolean | null;
+          }> | null;
           rank: number;
         };
       };
