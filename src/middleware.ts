@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest) {
 
   if (user && isAuthPage) {
     const url = request.nextUrl.clone();
-    url.pathname = "/matches";
+    url.pathname = "/fan-prediction";
     return NextResponse.redirect(url);
   }
 

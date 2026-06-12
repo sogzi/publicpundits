@@ -21,7 +21,7 @@ const stageLabel: Record<Match["stage"], string> = {
 
 export function MatchCard({ match, userPrediction }: Props) {
   return (
-    <Link href={`/matches/${match.id}`}>
+    <Link href={`/fan-prediction/${match.id}`}>
       <Card className="hover:shadow-md transition-shadow cursor-pointer">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">

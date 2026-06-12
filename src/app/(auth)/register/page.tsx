@@ -30,7 +30,7 @@ export default function RegisterPage() {
       setError(error.message);
       setLoading(false);
     } else {
-      router.push("/matches");
+      router.push("/fan-prediction");
       router.refresh();
     }
   }

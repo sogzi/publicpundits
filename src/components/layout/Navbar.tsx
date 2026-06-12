@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 const navLinks = [
   { href: "/fixtures",    label: "Fixtures",    icon: List },
-  { href: "/matches",     label: "Predictions", icon: Calendar },
+  { href: "/fan-prediction",     label: "Predictions", icon: Calendar },
   { href: "/leaderboard", label: "Leaderboard", icon: BarChart2 },
   { href: "/bracket",     label: "Bracket",     icon: GitBranch },
   { href: "/leagues",     label: "Leagues",     icon: Users },
@@ -30,7 +30,7 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/90 backdrop-blur dark:border-gray-800 dark:bg-gray-950/90">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
-        <Link href="/matches" className="flex items-center gap-2 font-bold text-emerald-600 text-lg">
+        <Link href="/fan-prediction" className="flex items-center gap-2 font-bold text-emerald-600 text-lg">
           <Trophy className="h-6 w-6" />
           PublicPundits
         </Link>
