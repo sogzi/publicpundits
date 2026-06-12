@@ -1,4 +1,5 @@
 import type { LeaderboardEntry } from "@/types/database";
+import { AvatarDisplay } from "@/components/ui/AvatarDisplay";
 
 const BRAND = "#1D9E75";
 
@@ -26,19 +27,6 @@ function RankBadge({ rank }: { rank: number }) {
   return <span className="text-sm font-bold text-gray-500 tabular-nums w-6 text-center">{rank}</span>;
 }
 
-function Avatar({ name, isMe }: { name: string; isMe: boolean }) {
-  return (
-    <div
-      className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-black flex-shrink-0 uppercase"
-      style={isMe
-        ? { backgroundColor: BRAND, color: "#fff" }
-        : { backgroundColor: "#F3F4F6", color: "#374151" }
-      }
-    >
-      {(name ?? "?")[0]}
-    </div>
-  );
-}
 
 function LeaderboardRow({ entry, currentUserId }: { entry: LeaderboardEntry; currentUserId?: string }) {
   const isMe = entry.id === currentUserId;
@@ -57,7 +45,7 @@ function LeaderboardRow({ entry, currentUserId }: { entry: LeaderboardEntry; cur
 
       <td className="px-2 py-3">
         <div className="flex items-center gap-2.5">
-          <Avatar name={entry.username} isMe={isMe} />
+          <AvatarDisplay avatarUrl={entry.avatar_url} username={entry.username} size="md" />
           <div className="min-w-0">
             <p className={`text-sm font-semibold truncate ${isMe ? "text-emerald-700" : "text-gray-900"}`}>
               {entry.display_name ?? entry.username}

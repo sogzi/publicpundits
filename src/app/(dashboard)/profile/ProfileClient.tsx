@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Star, Camera, Check } from "lucide-react";
 import type { Profile } from "@/types/database";
 import { calcScorePredictionPoints } from "@/lib/utils";
+import { AvatarDisplay } from "@/components/ui/AvatarDisplay";
 
 const BRAND = "#1D9E75";
 
@@ -24,53 +25,6 @@ const PRESET_AVATARS = [
   { id: "fox",     emoji: "🦊" },
   { id: "bear",    emoji: "🐻" },
 ];
-
-// Preset avatar URLs stored as "preset:<id>" in avatar_url column
-function isPreset(url: string | null): boolean {
-  return url?.startsWith("preset:") ?? false;
-}
-function presetEmoji(url: string | null): string | null {
-  const id = url?.replace("preset:", "");
-  return PRESET_AVATARS.find((a) => a.id === id)?.emoji ?? null;
-}
-
-// ─── Avatar display ───────────────────────────────────────────────────────────
-export function AvatarDisplay({
-  avatarUrl,
-  username,
-  size = "lg",
-}: {
-  avatarUrl: string | null;
-  username: string;
-  size?: "sm" | "md" | "lg";
-}) {
-  const dim =
-    size === "lg" ? "w-20 h-20 text-4xl" :
-    size === "md" ? "w-10 h-10 text-xl" :
-    "w-8 h-8 text-base";
-
-  if (avatarUrl && isPreset(avatarUrl)) {
-    return (
-      <div className={`${dim} rounded-full flex items-center justify-center bg-gray-100 flex-shrink-0`}>
-        {presetEmoji(avatarUrl)}
-      </div>
-    );
-  }
-
-  if (avatarUrl && !isPreset(avatarUrl)) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={avatarUrl} alt={username} className={`${dim} rounded-full object-cover flex-shrink-0`} />;
-  }
-
-  return (
-    <div
-      className={`${dim} rounded-full flex items-center justify-center text-white font-black uppercase flex-shrink-0`}
-      style={{ backgroundColor: BRAND }}
-    >
-      {username[0]}
-    </div>
-  );
-}
 
 // ─── Avatar picker modal ──────────────────────────────────────────────────────
 function AvatarPicker({
@@ -126,7 +80,7 @@ function AvatarPicker({
 
         {/* Live preview */}
         <div className="flex justify-center">
-          <AvatarDisplay avatarUrl={selected} username={username} size="lg" />
+          <AvatarDisplay avatarUrl={selected ?? null} username={username} size="lg" />
         </div>
 
         {/* Tab switcher */}
