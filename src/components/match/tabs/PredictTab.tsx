@@ -116,6 +116,12 @@ export function PredictTab({ match, userId, existing, homeLineupPlayers, awayLin
     else                 setAwaySlots((prev) => prev.map((p, i) => i === idx ? next : p));
   }
 
+  function clearSlot(side: "home" | "away", idx: number) {
+    const empty: PitchPlayer = { name: "", shirt: idx + 1, position: idx === 0 ? "GK" : idx < 5 ? "DEF" : idx < 8 ? "MID" : "FWD" };
+    if (side === "home") setHomeSlots((prev) => prev.map((p, i) => i === idx ? empty : p));
+    else                 setAwaySlots((prev) => prev.map((p, i) => i === idx ? empty : p));
+  }
+
   return (
     <div className="space-y-8">
       {/* ── Score Predictor ─────────────────────────────────────────────── */}
@@ -170,18 +176,24 @@ export function PredictTab({ match, userId, existing, homeLineupPlayers, awayLin
             const saving    = lineupSaving === side;
             const saved     = lineupSaved === side;
 
+            const filledCount = slots.filter((s) => s.name).length;
+            const allFilled   = filledCount === 11;
+
             return (
               <div key={side} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-sm text-gray-900">{teamName} XI</h3>
-                  <select
-                    value={formation}
-                    onChange={(e) => { setForm(e.target.value); (side === "home" ? setHomeSlots : setAwaySlots)(defaultSlots(e.target.value)); }}
-                    className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-900 bg-white"
-                  >
-                    {FORMATIONS.map((f) => <option key={f} value={f}>{f}</option>)}
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 font-medium">{filledCount}/11</span>
+                    <select
+                      value={formation}
+                      onChange={(e) => { setForm(e.target.value); (side === "home" ? setHomeSlots : setAwaySlots)(defaultSlots(e.target.value)); }}
+                      className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-gray-900 bg-white"
+                    >
+                      {FORMATIONS.map((f) => <option key={f} value={f}>{f}</option>)}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Pitch */}
@@ -191,6 +203,7 @@ export function PredictTab({ match, userId, existing, homeLineupPlayers, awayLin
                   editable
                   squad={squad}
                   onPickPlayer={(idx, sp) => pickPlayer(side, idx, sp)}
+                  onClearSlot={(idx) => clearSlot(side, idx)}
                   flipped={side === "away"}
                 />
 
@@ -199,15 +212,16 @@ export function PredictTab({ match, userId, existing, homeLineupPlayers, awayLin
                   <p className="text-xs text-amber-500 text-center">Squad not yet synced — run /api/sync-squads</p>
                 )}
 
-                {/* Save button */}
+                {/* Save button — disabled until all 11 slots filled */}
                 <button
                   type="button"
-                  disabled={saving}
+                  disabled={saving || !allFilled}
                   onClick={() => submitLineup(side)}
-                  className="w-full py-2.5 rounded-xl font-bold text-white text-sm transition-opacity disabled:opacity-50"
+                  className="w-full py-2.5 rounded-xl font-bold text-white text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ backgroundColor: BRAND }}
+                  title={!allFilled ? `Fill all 11 slots to save (${filledCount}/11 done)` : undefined}
                 >
-                  {saving ? "Saving…" : saved ? "✓ Lineup saved!" : "Save Lineup"}
+                  {saving ? "Saving…" : saved ? "✓ Lineup saved!" : allFilled ? "Save Lineup" : `Pick ${11 - filledCount} more player${11 - filledCount !== 1 ? "s" : ""}`}
                 </button>
               </div>
             );
