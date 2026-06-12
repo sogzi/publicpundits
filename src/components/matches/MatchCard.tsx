@@ -10,12 +10,13 @@ interface Props {
 }
 
 const stageLabel: Record<Match["stage"], string> = {
-  group: "Group Stage",
-  round_of_16: "Round of 16",
+  group:         "Group Stage",
+  round_of_32:   "Round of 32",
+  round_of_16:   "Round of 16",
   quarter_final: "Quarter-final",
-  semi_final: "Semi-final",
-  third_place: "3rd Place",
-  final: "Final",
+  semi_final:    "Semi-final",
+  third_place:   "3rd Place",
+  final:         "Final",
 };
 
 export function MatchCard({ match, userPrediction }: Props) {

@@ -26,6 +26,12 @@ create index if not exists lineups_match_id_idx on public.lineups (match_id);
 -- Enable RLS
 alter table public.lineups enable row level security;
 
+-- Drop policies if they already exist (makes migration re-runnable)
+drop policy if exists "lineups_select_all"          on public.lineups;
+drop policy if exists "lineups_insert_service_role"  on public.lineups;
+drop policy if exists "lineups_update_service_role"  on public.lineups;
+drop policy if exists "lineups_delete_service_role"  on public.lineups;
+
 -- Anyone (including anonymous) can read lineups
 create policy "lineups_select_all"
   on public.lineups

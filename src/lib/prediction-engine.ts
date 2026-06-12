@@ -3,32 +3,19 @@
  *
  * Generates a scoreline prediction for any WC2026 match using:
  *   1. FIFA world ranking strength (hardcoded June 2026 approximation)
- *   2. Recent form — last 5 finished matches per team (football-data.org)
- *   3. Head-to-head record — last 5 H2H meetings (football-data.org)
+ *   2. Recent form — derived from livescore-api H2H response overall_form arrays
+ *   3. Head-to-head record — from livescore-api /teams/head2head.json
  *   4. Tournament stage weight — knockouts trend lower-scoring
  *
  * Returns { homeScore, awayScore, confidence, reasoning } and upserts
  * the result to the platform_predictions table.
+ *
+ * Data source: livescore-api.com (WC2026 competition_id = 362)
+ * Team livescore IDs are stored in squads.team_fd_id (repurposed column).
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
-
-const BASE_URL = "https://api.football-data.org/v4";
-
-function fdHeaders() {
-  const key = process.env.FOOTBALL_API_KEY;
-  if (!key) throw new Error("FOOTBALL_API_KEY not set");
-  return { "X-Auth-Token": key };
-}
-
-async function fdFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: fdHeaders(),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`football-data.org ${res.status}: ${await res.text()}`);
-  return res.json() as Promise<T>;
-}
+import { getH2H } from "@/lib/football-api";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FIFA RANKING LOOKUP  (approximate June 2026 rankings, WC2026 participants)
@@ -51,125 +38,103 @@ const FIFA_RANKINGS: Record<string, number> = {
 
 function rankStrength(tla: string): number {
   const rank = FIFA_RANKINGS[tla] ?? 40;
-  // Normalise to 0–1 where rank 1 → 1.0, rank 52 → ~0.02
   return Math.max(0.02, (53 - rank) / 52);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STAGE WEIGHT  — knockouts tend to be tighter
+// STAGE WEIGHT
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STAGE_MULTIPLIER: Record<string, number> = {
-  group:        1.00,
-  round_of_32:  0.90,
-  round_of_16:  0.85,
+  group:         1.00,
+  round_of_32:   0.90,
+  round_of_16:   0.85,
   quarter_final: 0.80,
-  semi_final:   0.78,
-  third_place:  0.85,
-  final:        0.75,
+  semi_final:    0.78,
+  third_place:   0.85,
+  final:         0.75,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FORM  — fetch last 5 finished matches for a team
+// FORM  — parse livescore "W"/"D"/"L" strings from H2H overall_form arrays
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface FDMatchResult {
-  homeTeam: { id: number; tla: string };
-  awayTeam: { id: number; tla: string };
-  score: { fullTime: { home: number | null; away: number | null } };
-  status: string;
+interface FormStats {
+  pts: number;
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  label: string;
 }
 
-async function getRecentForm(teamFdId: number, teamTla: string): Promise<{
-  pts: number; played: number; wins: number; draws: number; losses: number;
-  goalsFor: number; goalsAgainst: number; label: string;
-}> {
-  try {
-    const data = await fdFetch<{ matches: FDMatchResult[] }>(
-      `/teams/${teamFdId}/matches?status=FINISHED&limit=5`
-    );
-    const matches = data.matches.slice(-5);
-
-    let pts = 0, wins = 0, draws = 0, losses = 0, gf = 0, ga = 0;
-
-    for (const m of matches) {
-      const isHome = m.homeTeam.tla === teamTla;
-      const scored = isHome ? m.score.fullTime.home : m.score.fullTime.away;
-      const conceded = isHome ? m.score.fullTime.away : m.score.fullTime.home;
-      gf += scored ?? 0;
-      ga += conceded ?? 0;
-      const diff = (scored ?? 0) - (conceded ?? 0);
-      if (diff > 0)      { wins++;   pts += 3; }
-      else if (diff < 0) { losses++; }
-      else               { draws++;  pts += 1; }
-    }
-
-    const played = matches.length;
-    const wdl = `${wins}W ${draws}D ${losses}L`;
-    const label = played > 0 ? `${wdl} in last ${played} (${gf} GF / ${ga} GA)` : "no recent data";
-    return { pts, played, wins, draws, losses, goalsFor: gf, goalsAgainst: ga, label };
-  } catch {
-    return { pts: 7, played: 5, wins: 2, draws: 1, losses: 2, goalsFor: 6, goalsAgainst: 5, label: "form unavailable" };
+function parseFormArray(form: string[]): FormStats {
+  let pts = 0, wins = 0, draws = 0, losses = 0;
+  for (const r of form) {
+    if (r === "W")      { wins++;   pts += 3; }
+    else if (r === "D") { draws++;  pts += 1; }
+    else if (r === "L") { losses++; }
   }
+  const played = form.length;
+  const label  = played > 0
+    ? `${wins}W ${draws}D ${losses}L in last ${played}`
+    : "no recent data";
+  return { pts, played, wins, draws, losses, label };
 }
 
-/** Form multiplier: 0.75 (terrible form) → 1.25 (perfect form) */
+const defaultForm: FormStats = {
+  pts: 7, played: 5, wins: 2, draws: 1, losses: 2,
+  label: "form unavailable",
+};
+
 function formMultiplier(pts: number, played: number): number {
   if (played === 0) return 1.0;
   const maxPts = played * 3;
-  const ratio = pts / maxPts; // 0–1
+  const ratio = pts / maxPts;
   return 0.75 + ratio * 0.50;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HEAD-TO-HEAD  — last 5 meetings between the two teams
+// HEAD-TO-HEAD  — parse livescore h2h_form arrays
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function getH2H(homeFdId: number, awayFdId: number, homeTla: string): Promise<{
-  homeWins: number; awayWins: number; draws: number; played: number; label: string;
-}> {
-  try {
-    const data = await fdFetch<{ matches: FDMatchResult[] }>(
-      `/teams/${homeFdId}/matches?status=FINISHED&limit=20`
-    );
-    const h2h = data.matches.filter(
-      (m) => m.homeTeam.id === awayFdId || m.awayTeam.id === awayFdId
-    ).slice(-5);
-
-    let homeWins = 0, awayWins = 0, draws = 0;
-    for (const m of h2h) {
-      const isHome = m.homeTeam.id === homeFdId;
-      const scored = isHome ? m.score.fullTime.home : m.score.fullTime.away;
-      const conceded = isHome ? m.score.fullTime.away : m.score.fullTime.home;
-      const diff = (scored ?? 0) - (conceded ?? 0);
-      if (diff > 0)      homeWins++;
-      else if (diff < 0) awayWins++;
-      else               draws++;
-    }
-
-    const played = h2h.length;
-    const label = played > 0
-      ? `H2H last ${played}: ${homeWins}W ${draws}D ${awayWins}L for ${homeTla}`
-      : "no H2H data";
-    return { homeWins, awayWins, draws, played, label };
-  } catch {
-    return { homeWins: 0, awayWins: 0, draws: 0, played: 0, label: "H2H unavailable" };
-  }
+interface H2HStats {
+  homeWins: number;
+  awayWins: number;
+  draws: number;
+  played: number;
+  label: string;
 }
 
-/** H2H advantage multiplier for the home team: 0.9 → 1.1 */
+function parseH2HForm(homeForm: string[], awayForm: string[], homeName: string): H2HStats {
+  // homeForm[i] is the result from the home team's perspective for meeting i
+  let homeWins = 0, awayWins = 0, draws = 0;
+  const played = Math.max(homeForm.length, awayForm.length);
+
+  // Use home team's h2h_form: W = home won, L = away won, D = draw
+  for (const r of homeForm) {
+    if (r === "W")      homeWins++;
+    else if (r === "L") awayWins++;
+    else if (r === "D") draws++;
+  }
+
+  const label = played > 0
+    ? `H2H last ${played}: ${homeWins}W ${draws}D ${awayWins}L for ${homeName}`
+    : "no H2H data";
+  return { homeWins, awayWins, draws, played, label };
+}
+
 function h2hMultiplier(homeWins: number, awayWins: number, played: number): number {
   if (played === 0) return 1.0;
-  const advantage = (homeWins - awayWins) / played; // -1 to +1
+  const advantage = (homeWins - awayWins) / played;
   return 1.0 + advantage * 0.10;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SCORELINE  — convert expected goals to a realistic integer scoreline
+// SCORELINE
 // ─────────────────────────────────────────────────────────────────────────────
 
 function toScoreline(xG: number): number {
-  // Weighted rounding biased slightly toward lower scores (football is low-scoring)
   if (xG < 0.4)  return 0;
   if (xG < 0.9)  return Math.random() < 0.5 ? 0 : 1;
   if (xG < 1.4)  return 1;
@@ -179,31 +144,20 @@ function toScoreline(xG: number): number {
   return 3;
 }
 
-/** Confidence: higher when ranking gap is large, form is clear, H2H is one-sided */
 function calcConfidence(
   homeStrength: number, awayStrength: number,
-  homeForm: { pts: number; played: number },
-  awayForm:  { pts: number; played: number },
-  h2h: { homeWins: number; awayWins: number; played: number }
+  homeForm: FormStats, awayForm: FormStats,
+  h2h: H2HStats
 ): number {
   let score = 50;
-
-  // Ranking gap — bigger gap → more confident
   const gap = Math.abs(homeStrength - awayStrength);
-  score += gap * 30; // up to +30
-
-  // Form clarity
+  score += gap * 30;
   const homeFormRatio = homeForm.played > 0 ? homeForm.pts / (homeForm.played * 3) : 0.5;
-  const awayFormRatio = awayForm.played > 0  ? awayForm.pts  / (awayForm.played  * 3) : 0.5;
-  const formDiff = Math.abs(homeFormRatio - awayFormRatio);
-  score += formDiff * 20; // up to +20
-
-  // H2H clarity
+  const awayFormRatio = awayForm.played  > 0 ? awayForm.pts  / (awayForm.played  * 3) : 0.5;
+  score += Math.abs(homeFormRatio - awayFormRatio) * 20;
   if (h2h.played >= 3) {
-    const dominance = Math.abs(h2h.homeWins - h2h.awayWins) / h2h.played;
-    score += dominance * 10; // up to +10
+    score += (Math.abs(h2h.homeWins - h2h.awayWins) / h2h.played) * 10;
   }
-
   return Math.round(Math.min(92, Math.max(35, score)));
 }
 
@@ -222,7 +176,6 @@ export interface GenerateOptions {
   /**
    * fastMode: skip external API calls (form + H2H).
    * Uses only FIFA rankings + stage weight.
-   * Safe for bulk generation — no rate-limit risk.
    */
   fastMode?: boolean;
 }
@@ -230,8 +183,8 @@ export interface GenerateOptions {
 export async function generatePrediction(matchId: string, opts: GenerateOptions = {}): Promise<PredictionResult> {
   const admin = createAdminClient();
 
-  // ── 1. Load match + team FD ids from Supabase ──────────────────────────────
-  const { data: match, error: matchErr } = await admin
+  // ── 1. Load match from Supabase ────────────────────────────────────────────
+  const { data: match, error: matchErr } = await (admin as any)
     .from("matches")
     .select("id, home_team, away_team, home_team_code, away_team_code, stage, kickoff_at")
     .eq("id", matchId)
@@ -239,48 +192,53 @@ export async function generatePrediction(matchId: string, opts: GenerateOptions 
 
   if (matchErr || !match) throw new Error(`Match ${matchId} not found`);
 
-  const { data: homeSquad } = await admin
+  // ── 2. Look up livescore team IDs from squads table ───────────────────────
+  // team_fd_id column is repurposed to store livescore team IDs after migration
+  const { data: homeSquad } = await (admin as any)
     .from("squads")
     .select("team_fd_id")
     .eq("team_code", match.home_team_code)
     .maybeSingle();
 
-  const { data: awaySquad } = await admin
+  const { data: awaySquad } = await (admin as any)
     .from("squads")
     .select("team_fd_id")
     .eq("team_code", match.away_team_code)
     .maybeSingle();
 
-  // ── 2. Ranking strength ────────────────────────────────────────────────────
+  // ── 3. Ranking strength ────────────────────────────────────────────────────
   const homeStrength = rankStrength(match.home_team_code);
   const awayStrength = rankStrength(match.away_team_code);
   const homeRank = FIFA_RANKINGS[match.home_team_code] ?? 40;
   const awayRank = FIFA_RANKINGS[match.away_team_code] ?? 40;
 
-  // ── 3. Form (parallel fetch — skipped in fastMode) ────────────────────────
-  const defaultForm = { pts: 7, played: 5, wins: 2, draws: 1, losses: 2, goalsFor: 5, goalsAgainst: 4, label: "not fetched (fast mode)" };
-  const [homeForm, awayForm] = opts.fastMode
-    ? [defaultForm, defaultForm]
-    : await Promise.all([
-        homeSquad?.team_fd_id
-          ? getRecentForm(homeSquad.team_fd_id, match.home_team_code)
-          : Promise.resolve(defaultForm),
-        awaySquad?.team_fd_id
-          ? getRecentForm(awaySquad.team_fd_id, match.away_team_code)
-          : Promise.resolve(defaultForm),
-      ]);
+  // ── 4. Form + H2H via livescore-api ──────────────────────────────────────
+  let homeForm: FormStats = defaultForm;
+  let awayForm: FormStats = defaultForm;
+  let h2h: H2HStats = { homeWins: 0, awayWins: 0, draws: 0, played: 0, label: "H2H unavailable" };
 
-  // ── 4. H2H (skipped in fastMode) ──────────────────────────────────────────
-  const h2h = (!opts.fastMode && homeSquad?.team_fd_id && awaySquad?.team_fd_id)
-    ? await getH2H(homeSquad.team_fd_id, awaySquad.team_fd_id, match.home_team_code)
-    : { homeWins: 0, awayWins: 0, draws: 0, played: 0, label: "H2H unavailable" };
+  if (!opts.fastMode && homeSquad?.team_fd_id && awaySquad?.team_fd_id) {
+    try {
+      const h2hData = await getH2H(homeSquad.team_fd_id, awaySquad.team_fd_id);
+      if (h2hData) {
+        homeForm = parseFormArray(h2hData.team1.overall_form ?? []);
+        awayForm = parseFormArray(h2hData.team2.overall_form ?? []);
+        h2h = parseH2HForm(
+          h2hData.team1.h2h_form ?? [],
+          h2hData.team2.h2h_form ?? [],
+          match.home_team
+        );
+      }
+    } catch {
+      // Silently fall back to defaults — prediction still runs
+    }
+  }
 
   // ── 5. Stage weight ────────────────────────────────────────────────────────
-  const stageMult = STAGE_MULTIPLIER[match.stage] ?? 1.0;
+  const stageMult  = STAGE_MULTIPLIER[match.stage] ?? 1.0;
   const stageLabel = match.stage.replace(/_/g, " ");
 
   // ── 6. Expected goals ──────────────────────────────────────────────────────
-  // Base: ranking strength maps to ~0.5–2.0 goals per game
   const baseHome = 0.5 + homeStrength * 1.5;
   const baseAway = 0.5 + awayStrength * 1.5;
 
@@ -291,17 +249,15 @@ export async function generatePrediction(matchId: string, opts: GenerateOptions 
 
   const awayXG = baseAway
     * formMultiplier(awayForm.pts, awayForm.played)
-    * h2hMultiplier(h2h.awayWins, h2h.homeWins, h2h.played) // reversed perspective
+    * h2hMultiplier(h2h.awayWins, h2h.homeWins, h2h.played)
     * stageMult;
 
-  // ── 7. Scoreline ───────────────────────────────────────────────────────────
+  // ── 7. Scoreline & confidence ──────────────────────────────────────────────
   const homeScore = toScoreline(homeXG);
   const awayScore = toScoreline(awayXG);
-
-  // ── 8. Confidence ──────────────────────────────────────────────────────────
   const confidence = calcConfidence(homeStrength, awayStrength, homeForm, awayForm, h2h);
 
-  // ── 9. Reasoning ───────────────────────────────────────────────────────────
+  // ── 8. Reasoning ───────────────────────────────────────────────────────────
   const rankingSentence = homeRank < awayRank
     ? `${match.home_team} (ranked #${homeRank}) hold a ranking advantage over ${match.away_team} (ranked #${awayRank}).`
     : homeRank > awayRank
@@ -324,8 +280,8 @@ export async function generatePrediction(matchId: string, opts: GenerateOptions 
 
   const reasoning = [rankingSentence, formSentence, h2hSentence, stageSentence, xgSentence].join(" ");
 
-  // ── 10. Persist to Supabase ────────────────────────────────────────────────
-  const { error: upsertErr } = await admin
+  // ── 9. Persist to Supabase ────────────────────────────────────────────────
+  const { error: upsertErr } = await (admin as any)
     .from("platform_predictions")
     .upsert(
       { match_id: matchId, home_score: homeScore, away_score: awayScore, confidence, reasoning, generated_at: new Date().toISOString() },

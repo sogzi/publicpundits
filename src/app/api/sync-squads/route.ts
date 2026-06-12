@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSquads, mapPosition } from "@/lib/football-api";
+import { getFixtures, getMatchHistory, getSquadForTeam, mapPosition, nameToTla, LIVESCORE_NAME_TO_TLA } from "@/lib/football-api";
 
 /**
- * Fetches all 48 WC2026 squads from football-data.org in a single call
- * and upserts them into the squads table.
+ * Syncs WC2026 squads from livescore-api.com.
  *
- * POST /api/sync-squads
- * Header: Authorization: Bearer <SYNC_SECRET>
+ * Flow:
+ *   1. Collect all unique team IDs from fixtures + history (avoids a separate teams-list call)
+ *   2. For each team, call /competitions/squads.json?competition_id=362&team_id=X
+ *   3. Upsert into `squads` table
  *
- * Run once after squads are officially confirmed (typically ~2 weeks before tournament).
- * Can be re-run to pick up any late squad changes.
+ * livescore squad player shape: { id, name, shirt_number, position: "GK"|"DF"|"MF"|"FW" }
+ *
+ * POST /api/sync-squads   Header: Authorization: Bearer <SYNC_SECRET>
+ * GET  /api/sync-squads?secret=<SYNC_SECRET>
  */
 export async function POST(request: Request) {
   const auth = request.headers.get("authorization") ?? "";
@@ -19,49 +22,79 @@ export async function POST(request: Request) {
   }
 
   try {
-    const teams = await getSquads();
+    // ── 1. Collect all WC team IDs from fixtures + history ────────────────────
+    const [fixtures, history] = await Promise.all([getFixtures(), getMatchHistory()]);
+    const allMatches = [...fixtures, ...history];
 
-    if (!teams.length) {
-      return NextResponse.json({ message: "No teams returned from API", synced: 0 });
+    const teamMap = new Map<number, string>(); // teamId → teamName
+    for (const m of allMatches) {
+      if (m.home?.id) teamMap.set(Number(m.home.id), m.home.name);
+      if (m.away?.id) teamMap.set(Number(m.away.id), m.away.name);
     }
 
-    const admin = createAdminClient();
+    if (!teamMap.size) {
+      return NextResponse.json({ message: "No teams found in fixtures/history", synced: 0 });
+    }
 
-    const rows = teams.map((team) => ({
-      team_code:  team.tla,
-      team_name:  team.name,
-      team_fd_id: team.id,
-      players: team.squad.map((p) => ({
-        id:          p.id,
-        name:        p.name,
-        position:    mapPosition(p.position),   // "GK" | "DEF" | "MID" | "FWD"
-        positionFull: p.position,               // full label for display
-        shirtNumber: p.shirtNumber,
-        dateOfBirth: p.dateOfBirth,
-        nationality: p.nationality,
-      })),
-      synced_at: new Date().toISOString(),
-    }));
+    const admin   = createAdminClient();
+    const results: { team: string; players: number; status: string }[] = [];
 
-    const { error, count } = await admin
-      .from("squads")
-      .upsert(rows, { onConflict: "team_code", count: "exact" });
+    // ── 2. Fetch squad per team ────────────────────────────────────────────────
+    for (const [teamId, teamName] of teamMap.entries()) {
+      try {
+        await new Promise((r) => setTimeout(r, 400)); // rate limit safety
 
-    if (error) throw error;
+        const squad = await getSquadForTeam(teamId);
+
+        if (!squad || squad.length === 0) {
+          results.push({ team: teamName, players: 0, status: "no_squad_data" });
+          continue;
+        }
+
+        const tla = nameToTla(teamName);
+        const players = squad.map((p) => ({
+          id:           parseInt(p.id),
+          name:         p.name,
+          position:     mapPosition(p.position),
+          positionFull: p.position,
+          shirtNumber:  parseInt(p.shirt_number) || null,
+        }));
+
+        const { error } = await (admin as any)
+          .from("squads")
+          .upsert(
+            {
+              team_code:  tla,
+              team_name:  teamName,
+              team_fd_id: teamId,   // livescore team ID stored here
+              players,
+              synced_at:  new Date().toISOString(),
+            },
+            { onConflict: "team_code" }
+          );
+
+        if (error) throw error;
+        results.push({ team: teamName, players: players.length, status: "synced" });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        results.push({ team: teamName, players: 0, status: `error: ${msg}` });
+      }
+    }
+
+    const synced = results.filter((r) => r.status === "synced").length;
+    const failed = results.filter((r) => r.status.startsWith("error")).length;
 
     return NextResponse.json({
-      message: "Squads synced successfully",
-      synced: count,
-      total: rows.length,
-      teams: rows.map((r) => `${r.team_code} (${r.players.length} players)`),
+      message: "Squads sync complete",
+      synced,
+      failed,
+      total: teamMap.size,
+      teams: results.map((r) => `${r.team} — ${r.players} players (${r.status})`),
     });
   } catch (err: unknown) {
-    const message =
-      err instanceof Error
-        ? err.message
-        : typeof err === "object" && err !== null
-        ? JSON.stringify(err)
-        : String(err);
+    const message = err instanceof Error ? err.message
+      : typeof err === "object" && err !== null ? JSON.stringify(err)
+      : String(err);
     console.error("[sync-squads]", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -69,13 +102,11 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const secret = searchParams.get("secret");
-  if (secret !== process.env.SYNC_SECRET) {
+  if (searchParams.get("secret") !== process.env.SYNC_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const fakeRequest = new Request(request.url, {
+  return POST(new Request(request.url, {
     method: "POST",
     headers: { authorization: `Bearer ${process.env.SYNC_SECRET}` },
-  });
-  return POST(fakeRequest);
+  }));
 }

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MatchPageClient } from "@/components/match/MatchPageClient";
-import type { LineupPlayer, SquadPlayer } from "@/types/database";
+import type { SquadPlayer } from "@/types/database";
 
 export const revalidate = 30;
 
@@ -28,7 +28,7 @@ export default async function MatchPage({ params }: { params: { id: string } }) 
     { data: scorePred },
     { data: homeLineupPred },
     { data: awayLineupPred },
-    { data: confirmedLineups },
+    { data: fetchedLineups },
     { data: homeSquad },
     { data: awaySquad },
     { data: chatMessages },
@@ -37,45 +37,37 @@ export default async function MatchPage({ params }: { params: { id: string } }) 
     { data: userRatings },
     { data: userPotg },
   ] = await Promise.all([
-    // Platform AI prediction
     (admin as any).from("platform_predictions").select("*").eq("match_id", id).maybeSingle(),
-    // User's score prediction
     user
       ? (supabase as any).from("score_predictions").select("*").eq("match_id", id).eq("user_id", user.id).maybeSingle()
       : Promise.resolve({ data: null }),
-    // User's home lineup prediction
     user
       ? (supabase as any).from("lineup_predictions").select("*").eq("match_id", id).eq("user_id", user.id).eq("team_code", match.home_team_code).maybeSingle()
       : Promise.resolve({ data: null }),
-    // User's away lineup prediction
     user
       ? (supabase as any).from("lineup_predictions").select("*").eq("match_id", id).eq("user_id", user.id).eq("team_code", match.away_team_code).maybeSingle()
       : Promise.resolve({ data: null }),
-    // Confirmed lineups from API sync
-    (admin as any).from("confirmed_lineups").select("*").eq("match_id", id),
-    // Squads for lineup picker
+    Promise.resolve({ data: [] }),   // lineups now fetched client-side in LineupsTab
     (admin as any).from("squads").select("players, team_name").eq("team_code", match.home_team_code).maybeSingle(),
     (admin as any).from("squads").select("players, team_name").eq("team_code", match.away_team_code).maybeSingle(),
-    // Chat messages with profile info
     (admin as any)
       .from("chat_messages")
       .select("*, profiles(username, display_name, avatar_url)")
       .eq("match_id", id)
       .order("created_at", { ascending: true })
       .limit(50),
-    // All player ratings for this match (for community averages)
     (admin as any).from("player_ratings").select("player_name, team_code, rating").eq("match_id", id),
-    // All potg votes
     (admin as any).from("potg_votes").select("player_name, team_code").eq("match_id", id),
-    // User's own ratings
     user
       ? (supabase as any).from("player_ratings").select("player_name, rating").eq("match_id", id).eq("user_id", user.id)
       : Promise.resolve({ data: [] }),
-    // User's potg vote
     user
       ? (supabase as any).from("potg_votes").select("player_name").eq("match_id", id).eq("user_id", user.id).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
+
+  // Lineups are fetched client-side by LineupsTab via /api/lineups
+  const confirmedLineups = fetchedLineups ?? [];
 
   // ── Aggregate community ratings ────────────────────────────────────────────
   const ratingAgg: Record<string, { team_code: string; sum: number; count: number }> = {};
@@ -95,13 +87,42 @@ export default async function MatchPage({ params }: { params: { id: string } }) 
     potgAgg[v.player_name].votes++;
   }
 
-  // ── Build player list from confirmed lineups ────────────────────────────────
-  const allPlayers: Array<{ name: string; team_code: string; position: string; shirt: number }> = [];
-  for (const lineup of confirmedLineups ?? []) {
-    const xi  = (lineup.start_xi  as LineupPlayer[] | null) ?? [];
-    const sub = (lineup.substitutes as LineupPlayer[] | null) ?? [];
-    for (const p of [...xi, ...sub]) {
-      if (p.name) allPlayers.push({ name: p.name, team_code: lineup.team_code, position: p.position, shirt: p.shirt_number });
+  // allPlayers for Rate/POTG tabs.
+  // Priority: confirmed lineups (starters + subs) → squad fallback
+  const { data: storedLineups } = await (admin as any)
+    .from("lineups")
+    .select("team, players")
+    .eq("match_id", id);
+
+  let allPlayers: Array<{ name: string; team_code: string; position: string; shirt: number }> = [];
+
+  if (storedLineups && storedLineups.length >= 2) {
+    // Use confirmed lineup data if available
+    for (const row of storedLineups) {
+      for (const p of row.players ?? []) {
+        allPlayers.push({
+          name:      p.name,
+          team_code: row.team,
+          position:  p.pos ?? p.position ?? "MID",
+          shirt:     p.shirt ?? p.shirt_number ?? 0,
+        });
+      }
+    }
+  } else {
+    // Fall back to full squad for both teams
+    const squads = [
+      { squad: homeSquad, code: match.home_team_code },
+      { squad: awaySquad, code: match.away_team_code },
+    ];
+    for (const { squad, code } of squads) {
+      for (const p of (squad?.players as any[]) ?? []) {
+        allPlayers.push({
+          name:      p.name,
+          team_code: code,
+          position:  p.position ?? "MID",
+          shirt:     p.shirtNumber ?? 0,
+        });
+      }
     }
   }
 
@@ -111,9 +132,9 @@ export default async function MatchPage({ params }: { params: { id: string } }) 
       userId={user?.id ?? null}
       platformPrediction={platformPred}
       userScorePrediction={scorePred}
-      homeLineupPrediction={homeLineupPred ? (homeLineupPred.players as LineupPlayer[]) : null}
-      awayLineupPrediction={awayLineupPred ? (awayLineupPred.players as LineupPlayer[]) : null}
-      confirmedLineups={confirmedLineups ?? []}
+      homeLineupPrediction={homeLineupPred ? (homeLineupPred.players as any[]) : null}
+      awayLineupPrediction={awayLineupPred ? (awayLineupPred.players as any[]) : null}
+      confirmedLineups={confirmedLineups}
       homeSquad={(homeSquad?.players as SquadPlayer[]) ?? []}
       awaySquad={(awaySquad?.players as SquadPlayer[]) ?? []}
       chatMessages={(chatMessages ?? []) as any}
