@@ -160,7 +160,7 @@ export function FanPredictionClient({ matches, predMap }: Props) {
   const hasLive = matches.some((m) => m.status === "live");
   useEffect(() => {
     if (!hasLive) return;
-    const id = setInterval(() => router.refresh(), 30_000);
+    const id = setInterval(() => router.refresh(), 15_000);
     return () => clearInterval(id);
   }, [hasLive, router]);
 
