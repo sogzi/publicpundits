@@ -38,14 +38,16 @@ interface LSScores {
 }
 
 interface LSMatch {
-  id:       number;
-  date:     string;
-  time?:    string;
-  status?:  string;
-  home:     LSTeam;
-  away:     LSTeam;
-  scores?:  LSScores;
-  group_id?: number;
+  id:          number;   // internal livescore id (changes per match instance)
+  fixture_id?: number;  // stable planning id — matches our api_football_id column
+  date:        string;
+  time?:       string;
+  status?:     string;
+  home:        LSTeam;
+  away:        LSTeam;
+  scores?:     LSScores;
+  group_id?:   number;
+  last_changed?: string;
 }
 
 interface LSEvent {
@@ -221,10 +223,12 @@ Deno.serve(async (req) => {
       ...(histData.data?.match ?? []),
     ];
 
-    // Index by livescore internal id
+    // Index by fixture_id (stable planning id = our api_football_id) first,
+    // fall back to internal id for matches that only have one or the other
     const lsById = new Map<number, LSMatch>();
     for (const m of lsMatches) {
-      lsById.set(m.id, m);
+      if (m.fixture_id) lsById.set(m.fixture_id, m); // preferred: stable id
+      lsById.set(m.id, m);                            // fallback: internal id
     }
 
     log.push(`livescore-api returned ${lsMatches.length} matches (live + history)`);
@@ -268,13 +272,14 @@ Deno.serve(async (req) => {
     const needEvents = toUpdate.filter(({ newStatus }) => newStatus !== "upcoming");
 
     for (let i = 0; i < needEvents.length; i++) {
-      const { dbMatch } = needEvents[i];
-      const lsId = (dbMatch as any).api_football_id;
+      const { dbMatch, lsMatch } = needEvents[i];
+      // Events endpoint uses internal livescore id (not fixture_id)
+      const lsId = lsMatch.id;
       try {
         const data = await lsFetch<{ success: boolean; data: { event: LSEvent[] } }>(
           `/scores/events.json?id=${lsId}`, apiKey, apiSecret
         );
-        eventsMap.set(lsId, normaliseEvents(data.data?.event ?? []));
+        eventsMap.set(lsMatch.id, normaliseEvents(data.data?.event ?? []));
         log.push(`Events fetched for ${(dbMatch as any).home_team} vs ${(dbMatch as any).away_team}`);
       } catch (err) {
         errors.push(`Events failed for match ${lsId}: ${err instanceof Error ? err.message : String(err)}`);
@@ -292,7 +297,7 @@ Deno.serve(async (req) => {
         patch.away_score = ftScore.away;
       }
 
-      const events = eventsMap.get(lsId);
+      const events = eventsMap.get(lsMatch.id);
       if (events !== undefined) patch.match_events = events;
 
       const { error: upErr } = await supabase
