@@ -157,38 +157,53 @@ Deno.serve(async (req) => {
   const updated: string[] = [];
   const errors: string[] = [];
 
+  // Parse body for options
+  let force = false;
   try {
-    // ── Step 1: load active DB matches ────────────────────────────────────────
-    const { data: dbMatches, error: dbErr } = await supabase
+    const body = await req.json().catch(() => ({}));
+    force = body?.force === true;
+  } catch { /* no body */ }
+
+  try {
+    // ── Step 1: load DB matches ───────────────────────────────────────────────
+    // In force/backfill mode: all statuses. Otherwise: upcoming + live only.
+    let matchQuery = supabase
       .from("matches")
       .select("id, api_football_id, home_team, away_team, home_team_code, away_team_code, status, home_score, away_score, kickoff_at")
-      .in("status", ["upcoming", "live"])
       .not("api_football_id", "is", null);
+
+    if (!force) {
+      matchQuery = matchQuery.in("status", ["upcoming", "live"]);
+    }
+
+    const { data: dbMatches, error: dbErr } = await matchQuery;
 
     if (dbErr) throw new Error(`DB fetch failed: ${dbErr.message}`);
     if (!dbMatches || dbMatches.length === 0) {
       return new Response(
-        JSON.stringify({ message: "No active matches to sync" }),
+        JSON.stringify({ message: "No matches to sync" }),
         { headers: { "Content-Type": "application/json" } }
       );
     }
 
-    log.push(`${dbMatches.length} active matches in DB`);
+    log.push(`${dbMatches.length} matches loaded (force=${force})`);
 
-    // ── Step 2: smart early-exit ──────────────────────────────────────────────
-    const now = Date.now();
-    const threeHoursMs = 3 * 60 * 60 * 1000;
-    const hasRelevant = dbMatches.some((m: any) => {
-      if (m.status === "live") return true;
-      const kickoff = new Date(m.kickoff_at).getTime();
-      return Math.abs(kickoff - now) < threeHoursMs;
-    });
+    // ── Step 2: smart early-exit (skip in force mode) ─────────────────────────
+    if (!force) {
+      const now = Date.now();
+      const threeHoursMs = 3 * 60 * 60 * 1000;
+      const hasRelevant = dbMatches.some((m: any) => {
+        if (m.status === "live") return true;
+        const kickoff = new Date(m.kickoff_at).getTime();
+        return Math.abs(kickoff - now) < threeHoursMs;
+      });
 
-    if (!hasRelevant) {
-      return new Response(
-        JSON.stringify({ message: "No matches within 3 h window — skipping API call", skipped: dbMatches.length }),
-        { headers: { "Content-Type": "application/json" } }
-      );
+      if (!hasRelevant) {
+        return new Response(
+          JSON.stringify({ message: "No matches within 3 h window — skipping API call", skipped: dbMatches.length }),
+          { headers: { "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // ── Step 3: fetch live + history from livescore-api ───────────────────────
@@ -246,6 +261,7 @@ Deno.serve(async (req) => {
         { headers: { "Content-Type": "application/json" } }
       );
     }
+
 
     // ── Step 5: fetch events for live/finished matches ────────────────────────
     const eventsMap = new Map<number, NormalisedEvent[]>();
