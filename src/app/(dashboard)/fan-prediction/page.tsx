@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FanPredictionClient } from "@/components/fan-prediction/FanPredictionClient";
 
-export const revalidate = 60;
+export const revalidate = 30;
 
 export default async function FanPredictionPage() {
   const supabase = createClient();

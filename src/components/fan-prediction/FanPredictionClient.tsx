@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FLAG } from "@/lib/fixtures-data";
 import { Badge } from "@/components/ui/badge";
@@ -88,7 +89,15 @@ function PredictionCard({ match, userPrediction }: PredCard) {
               Predicted
             </span>
           )}
-          {isLive     && <Badge variant="live">LIVE</Badge>}
+          {isLive && (
+            <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-black tracking-wide bg-red-500 text-white">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+              </span>
+              LIVE
+            </span>
+          )}
           {isFinished && <Badge variant="secondary">FT</Badge>}
           {!isLive && !isFinished && !hasPred && (
             <span className="text-xs text-gray-400 font-medium">Upcoming</span>
@@ -145,6 +154,15 @@ interface Props {
 export function FanPredictionClient({ matches, predMap }: Props) {
   const [stageFilter, setStageFilter] = useState<Match["stage"] | "all">("all");
   const [groupFilter, setGroupFilter] = useState<string>("all");
+  const router = useRouter();
+
+  // Auto-refresh every 30s when live matches exist
+  const hasLive = matches.some((m) => m.status === "live");
+  useEffect(() => {
+    if (!hasLive) return;
+    const id = setInterval(() => router.refresh(), 30_000);
+    return () => clearInterval(id);
+  }, [hasLive, router]);
 
   const filtered = useMemo(() => {
     return matches.filter((m) => {

@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { FIXTURES_SEED } from "@/lib/fixtures-data";
 import { FixturesClient } from "@/components/fixtures/FixturesClient";
 
-export const revalidate = 60;
+export const revalidate = 30;
 
 export default async function FixturesPage() {
   const supabase = createClient();

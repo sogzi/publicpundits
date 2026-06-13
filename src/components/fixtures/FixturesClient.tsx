@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FLAG } from "@/lib/fixtures-data";
 import { Badge } from "@/components/ui/badge";
@@ -67,12 +68,22 @@ function MatchCard({ match }: { match: Match }) {
   return (
     <Link
       href={`/match/${match.id}`}
-      className="block rounded-xl border border-gray-100 bg-white hover:border-gray-300 hover:shadow-sm transition-all p-4"
+      className={`block rounded-xl border bg-white hover:shadow-sm transition-all p-4 ${
+        isLive ? "border-red-300 shadow-sm shadow-red-100" : "border-gray-100 hover:border-gray-300"
+      }`}
     >
       {/* top row: date + status */}
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs text-gray-400">{formatKickoff(match.kickoff_at)}</span>
-        {isLive && <Badge variant="live">LIVE</Badge>}
+        {isLive && (
+          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-black tracking-wide bg-red-500 text-white">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+            </span>
+            LIVE
+          </span>
+        )}
         {isFinished && <Badge variant="secondary">FT</Badge>}
         {!isLive && !isFinished && (
           <span className="text-xs text-gray-400 font-medium">Upcoming</span>
@@ -120,6 +131,15 @@ interface Props {
 export function FixturesClient({ matches }: Props) {
   const [stageFilter, setStageFilter] = useState<Match["stage"] | "all">("all");
   const [groupFilter, setGroupFilter] = useState<string>("all");
+  const router = useRouter();
+
+  // Auto-refresh every 30s when there are live matches
+  const hasLive = matches.some((m) => m.status === "live");
+  useEffect(() => {
+    if (!hasLive) return;
+    const id = setInterval(() => router.refresh(), 30_000);
+    return () => clearInterval(id);
+  }, [hasLive, router]);
 
   const filtered = useMemo(() => {
     return matches.filter((m) => {
