@@ -11,11 +11,12 @@ import { Trophy } from "lucide-react";
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/fan-prediction";
+  const urlError = searchParams.get("error") ?? "";
+  const [error, setError] = useState(urlError);
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
