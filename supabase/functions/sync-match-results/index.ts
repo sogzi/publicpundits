@@ -288,8 +288,7 @@ Deno.serve(async (req) => {
     }
 
     // ── Step 6: persist updates ───────────────────────────────────────────────
-    for (const { dbMatch, newStatus, ftScore } of toUpdate) {
-      const lsId = (dbMatch as any).api_football_id;
+    for (const { dbMatch, lsMatch, newStatus, ftScore } of toUpdate) {
       const patch: Record<string, unknown> = { status: newStatus };
 
       if (newStatus !== "upcoming") {
