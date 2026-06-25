@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { Match, PlatformPrediction, ScorePrediction } from "@/types/database";
+import { MatchTimeline } from "@/components/match/MatchTimeline";
 
 const BRAND = "#1D9E75";
 
@@ -177,6 +178,15 @@ export function OverviewTab({ match, platformPrediction, userScorePrediction, us
           )}
         </div>
       </div>
+
+      {/* Match event timeline */}
+      {match.match_events && match.match_events.length > 0 && (
+        <MatchTimeline
+          events={match.match_events}
+          homeCode={match.home_team_code}
+          awayCode={match.away_team_code}
+        />
+      )}
 
       {/* Full reasoning accordion (if platform pred exists) */}
       {platformPrediction && (

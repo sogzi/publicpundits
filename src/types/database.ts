@@ -35,6 +35,8 @@ export interface Database {
           status: "upcoming" | "live" | "finished";
           predictions_locked_at: string | null;
           api_football_id: number | null;
+          livescore_id: number | null;
+          match_events: MatchEvent[] | null;
           created_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["matches"]["Row"], "id" | "created_at"> & { id?: string };
@@ -254,3 +256,16 @@ export interface LineupPlayer {
 
 export type MatchStage = Match["stage"];
 export type MatchStatus = Match["status"];
+
+export interface MatchEvent {
+  type: "GOAL" | "OWN GOAL" | "PENALTY GOAL" | "YELLOW CARD" | "RED CARD" | "SUBSTITUTION";
+  minute: number;
+  injury_time: number | null;
+  team_side: "home" | "away";
+  // Goals
+  player?: string;
+  assist?: string | null;
+  // Substitutions
+  player_in?: string;
+  player_out?: string;
+}
