@@ -227,8 +227,27 @@ Deno.serve(async (req) => {
     // fall back to internal id for matches that only have one or the other
     const lsById = new Map<number, LSMatch>();
     for (const m of lsMatches) {
-      if (m.fixture_id) lsById.set(m.fixture_id, m); // preferred: stable id
-      lsById.set(m.id, m);                            // fallback: internal id
+      if (m.fixture_id) lsById.set(m.fixture_id, m);
+      lsById.set(m.id, m);
+    }
+
+    // Name-based index as fallback when fixture_id/id don't match DB api_football_id
+    // Key: "homename|awayname" lowercased and normalised
+    const normalise = (s: string) =>
+      s.toLowerCase()
+        .replace(/[^a-z0-9]/g, "")
+        .replace(/czechia|czechrepublic/, "czech")
+        .replace(/bosniaandherzegovina|bosniaherzegovina/, "bosnia")
+        .replace(/capeverde|capeverdeislands/, "capeverde")
+        .replace(/congodr|drcongo/, "congo")
+        .replace(/unitedstates|usa/, "usa")
+        .replace(/côtedivoire|ivorycoast/, "ivorycoast")
+        .replace(/curazao|curaçao/, "curacao");
+
+    const lsByName = new Map<string, LSMatch>();
+    for (const m of lsMatches) {
+      const key = `${normalise(m.home.name)}|${normalise(m.away.name)}`;
+      lsByName.set(key, m);
     }
 
     log.push(`livescore-api returned ${lsMatches.length} matches (live + history)`);
@@ -242,7 +261,12 @@ Deno.serve(async (req) => {
     }> = [];
 
     for (const dbMatch of dbMatches) {
-      const lsMatch = lsById.get((dbMatch as any).api_football_id);
+      // Try ID match first, then fall back to team name match
+      let lsMatch = lsById.get((dbMatch as any).api_football_id);
+      if (!lsMatch) {
+        const key = `${normalise((dbMatch as any).home_team)}|${normalise((dbMatch as any).away_team)}`;
+        lsMatch = lsByName.get(key);
+      }
       if (!lsMatch) continue;
 
       const newStatus = mapStatus(lsMatch);
