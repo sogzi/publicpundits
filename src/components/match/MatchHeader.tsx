@@ -3,6 +3,18 @@
 import { FLAG } from "@/lib/fixtures-data";
 import type { Match } from "@/types/database";
 
+// FIFA World Rankings (June 2026) for WC2026 participating teams
+const FIFA_RANK: Record<string, number> = {
+  ARG: 1, FRA: 2, ESP: 3, ENG: 4, BRA: 5, POR: 6, BEL: 7, NED: 8,
+  GER: 9, URY: 10, COL: 11, USA: 12, ITA: 13, MEX: 14, JPN: 15,
+  MAR: 16, SUI: 17, CRO: 18, SEN: 19, DEN: 20, AUT: 21, SCO: 22,
+  TUR: 23, UKR: 24, NOR: 25, SWE: 26, CZE: 27, KOR: 28, AUS: 29,
+  IRN: 30, CMR: 31, EGY: 32, RSA: 33, NZL: 34, CIV: 35, ECU: 36,
+  PAR: 37, KSA: 38, PAN: 39, CPV: 40, QAT: 41, IRQ: 42, JOR: 43,
+  ALG: 44, GHA: 45, CAN: 46, TUN: 47, UZB: 48, NGA: 49, HAI: 50,
+  COD: 55, BIH: 56, CUW: 99,
+};
+
 const BRAND = "#1D9E75";
 
 function statusPill(status: Match["status"]) {
@@ -53,6 +65,9 @@ export function MatchHeader({ match }: { match: Match }) {
             <span className="text-4xl leading-none">{homeFlag}</span>
             <span className="text-sm font-bold text-gray-900 text-center leading-tight">{match.home_team}</span>
             <span className="text-xs text-gray-400">{match.home_team_code}</span>
+            {FIFA_RANK[match.home_team_code] && (
+              <span className="text-[10px] text-gray-300 font-medium">FIFA: {FIFA_RANK[match.home_team_code]}</span>
+            )}
           </div>
 
           {/* Score / VS */}
@@ -77,6 +92,9 @@ export function MatchHeader({ match }: { match: Match }) {
             <span className="text-4xl leading-none">{awayFlag}</span>
             <span className="text-sm font-bold text-gray-900 text-center leading-tight">{match.away_team}</span>
             <span className="text-xs text-gray-400">{match.away_team_code}</span>
+            {FIFA_RANK[match.away_team_code] && (
+              <span className="text-[10px] text-gray-300 font-medium">FIFA: {FIFA_RANK[match.away_team_code]}</span>
+            )}
           </div>
         </div>
 

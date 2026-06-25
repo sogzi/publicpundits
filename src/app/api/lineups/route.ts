@@ -5,12 +5,11 @@ import { getLineups, mapPosition } from "@/lib/football-api";
 /**
  * GET /api/lineups?matchId={uuid}
  *
- * 1. Check the `lineups` table in Supabase for both teams.
- * 2. If found → return immediately (no API call).
- * 3. If not found → call livescore-api /matches/lineups.json, normalize, upsert, return.
+ * Uses livescore_id (internal livescore match ID) for API calls, NOT api_football_id
+ * (which is the fixture planning ID and only works for score sync, not lineups/stats).
  *
- * livescore-api player shape:
- *   { id, name, substitution: "0"|"1", shirt_number, position: "GK"|"DF"|"MF"|"FW" }
+ * Cache validation: reject cached lineups where both teams have 0 players —
+ * this happens when a wrong match_id was used previously (cross-contamination bug).
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -22,10 +21,10 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient();
 
-  // ── 1. Look up match ────────────────────────────────────────────────────────
+  // ── 1. Look up match (include livescore_id) ─────────────────────────────────
   const { data: match, error: matchErr } = await (admin as any)
     .from("matches")
-    .select("id, api_football_id, home_team, away_team, home_team_code, away_team_code, status")
+    .select("id, api_football_id, livescore_id, home_team, away_team, home_team_code, away_team_code, status")
     .eq("id", matchId)
     .single();
 
@@ -33,7 +32,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Match not found" }, { status: 404 });
   }
 
-  // ── 2. Check lineups table ──────────────────────────────────────────────────
+  // ── 2. Check lineups cache ──────────────────────────────────────────────────
   const { data: stored } = await (admin as any)
     .from("lineups")
     .select("team, formation, players, confirmed")
@@ -42,7 +41,12 @@ export async function GET(request: Request) {
   const storedHome = (stored ?? []).find((r: any) => r.team === match.home_team_code);
   const storedAway = (stored ?? []).find((r: any) => r.team === match.away_team_code);
 
-  if (storedHome && storedAway) {
+  // Reject cache if both teams have empty player arrays (bad fetch from wrong match_id)
+  const cacheValid =
+    storedHome && storedAway &&
+    (storedHome.players.length > 0 || storedAway.players.length > 0);
+
+  if (cacheValid) {
     return NextResponse.json({
       source: "cache",
       home: buildTeamPayload(match.home_team, match.home_team_code, storedHome),
@@ -50,21 +54,22 @@ export async function GET(request: Request) {
     });
   }
 
-  // ── 3. Fetch from livescore-api ─────────────────────────────────────────────
-  if (!match.api_football_id) {
-    return NextResponse.json({ notAvailable: true, reason: "no_fixture_id" });
+  // ── 3. Need livescore internal ID to fetch lineups ──────────────────────────
+  const liveScoreId: number | null = match.livescore_id ?? null;
+
+  if (!liveScoreId) {
+    return NextResponse.json({ notAvailable: true, reason: "no_livescore_id" });
   }
 
-  const lineup = await getLineups(match.api_football_id);
+  // ── 4. Fetch from livescore-api using internal match ID ─────────────────────
+  const lineup = await getLineups(liveScoreId);
 
   if (!lineup) {
     return NextResponse.json({ notAvailable: true, reason: "not_published_yet" });
   }
 
-  // ── 4. Normalise & upsert ───────────────────────────────────────────────────
-  // livescore-api: substitution "0" = starter, "1" = sub
-  const confirmedLineup = lineup; // narrowed non-null ref for use inside closures
-  function normalisePlayers(players: typeof confirmedLineup.home.players) {
+  // ── 5. Normalise & upsert ───────────────────────────────────────────────────
+  function normalisePlayers(players: typeof lineup.home.players) {
     return players.map((p) => ({
       name:    p.name,
       shirt:   parseInt(p.shirt_number) || 0,
@@ -78,7 +83,7 @@ export async function GET(request: Request) {
     match_id:  matchId,
     team:      match.home_team_code,
     formation: null,
-    players:   normalisePlayers(confirmedLineup.home.players),
+    players:   normalisePlayers(lineup.home.players),
     confirmed: true,
   };
 
@@ -86,7 +91,7 @@ export async function GET(request: Request) {
     match_id:  matchId,
     team:      match.away_team_code,
     formation: null,
-    players:   normalisePlayers(confirmedLineup.away.players),
+    players:   normalisePlayers(lineup.away.players),
     confirmed: true,
   };
 

@@ -114,19 +114,43 @@ export function OverviewTab({ match, platformPrediction, userScorePrediction, us
                 <span className="font-medium text-gray-600">{match.away_team_code}</span>
               </div>
               <ScoreDisplay home={userScorePrediction.home_score} away={userScorePrediction.away_score} />
-              {isFinished && userScorePrediction.points_awarded !== null && (
-                <p className="text-center text-xs mt-2 font-bold" style={{ color: userScorePrediction.points_awarded > 0 ? BRAND : "#9ca3af" }}>
-                  {userScorePrediction.points_awarded > 0 ? `+${userScorePrediction.points_awarded} pts` : "0 pts"}
-                </p>
-              )}
-              {!isFinished && (
+
+              {isFinished && match.home_score !== null && match.away_score !== null ? (
+                <div className="mt-3 space-y-2">
+                  {/* Actual result comparison */}
+                  <div className="rounded-lg bg-gray-50 px-3 py-2 flex items-center justify-between text-xs">
+                    <span className="text-gray-500">Actual</span>
+                    <span className="font-bold text-gray-900">
+                      {match.home_score} – {match.away_score}
+                    </span>
+                    {(() => {
+                      const predHome = userScorePrediction.home_score;
+                      const predAway = userScorePrediction.away_score;
+                      const actHome  = match.home_score!;
+                      const actAway  = match.away_score!;
+                      const exactHit = predHome === actHome && predAway === actAway;
+                      const predWinner = predHome > predAway ? "H" : predHome < predAway ? "A" : "D";
+                      const actWinner  = actHome  > actAway  ? "H" : actHome  < actAway  ? "A" : "D";
+                      const resultHit  = predWinner === actWinner;
+                      if (exactHit)  return <span className="font-bold text-emerald-600 text-[10px]">⚡ Exact!</span>;
+                      if (resultHit) return <span className="font-bold text-amber-500 text-[10px]">✓ Result</span>;
+                      return <span className="text-gray-300 text-[10px]">✗ Miss</span>;
+                    })()}
+                  </div>
+                  {userScorePrediction.points_awarded !== null && (
+                    <p className="text-center text-xs font-bold" style={{ color: userScorePrediction.points_awarded > 0 ? BRAND : "#9ca3af" }}>
+                      {userScorePrediction.points_awarded > 0 ? `+${userScorePrediction.points_awarded} pts earned` : "0 pts"}
+                    </p>
+                  )}
+                </div>
+              ) : !isFinished ? (
                 <button
                   onClick={onGoToPredict}
                   className="mt-3 w-full text-xs font-semibold underline text-gray-400 hover:text-gray-600"
                 >
                   Edit prediction →
                 </button>
-              )}
+              ) : null}
             </>
           ) : (
             <div className="text-center py-4">
@@ -139,6 +163,13 @@ export function OverviewTab({ match, platformPrediction, userScorePrediction, us
                 >
                   Make a prediction →
                 </button>
+              ) : isFinished ? (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-300">Predictions closed</p>
+                  <p className="text-xs font-bold text-gray-700">
+                    Result: {match.home_score} – {match.away_score}
+                  </p>
+                </div>
               ) : (
                 <p className="text-xs text-gray-300">Predictions closed</p>
               )}

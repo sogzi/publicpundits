@@ -8,6 +8,7 @@ import { LineupsTab }  from "./tabs/LineupsTab";
 import { RateTab }     from "./tabs/RateTab";
 import { VoteTab }     from "./tabs/VoteTab";
 import { BanterTab }   from "./tabs/BanterTab";
+import { StatsTab }    from "./tabs/StatsTab";
 import type {
   Match, PlatformPrediction, ScorePrediction,
   LineupPlayer, SquadPlayer,
@@ -52,7 +53,7 @@ interface Props {
   allPlayers: Player[];
 }
 
-type TabId = "overview" | "predict" | "lineups" | "rate" | "vote" | "banter";
+type TabId = "overview" | "predict" | "lineups" | "stats" | "rate" | "vote" | "banter";
 
 interface Tab {
   id: TabId;
@@ -76,6 +77,7 @@ export function MatchPageClient({
     { id: "overview", label: "Overview", emoji: "📊", show: true },
     { id: "predict",  label: "Predict",  emoji: "🎯", show: upcoming },
     { id: "lineups",  label: "Lineups",  emoji: "📋", show: true },
+    { id: "stats",    label: "Stats",    emoji: "📈", show: !upcoming },
     { id: "rate",     label: "Rate",     emoji: "⭐", show: finished },
     { id: "vote",     label: "POTG",     emoji: "🏆", show: finished },
     { id: "banter",   label: "Banter",   emoji: "💬", show: true },
@@ -113,6 +115,8 @@ export function MatchPageClient({
         );
       case "lineups":
         return <LineupsTab match={match} confirmedLineups={confirmedLineups} />;
+      case "stats":
+        return <StatsTab match={match} />;
       case "rate":
         return (
           <RateTab

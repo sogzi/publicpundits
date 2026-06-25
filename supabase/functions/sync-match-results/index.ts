@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
     // In force/backfill mode: all statuses. Otherwise: upcoming + live only.
     let matchQuery = supabase
       .from("matches")
-      .select("id, api_football_id, home_team, away_team, home_team_code, away_team_code, status, home_score, away_score, kickoff_at")
+      .select("id, api_football_id, livescore_id, home_team, away_team, home_team_code, away_team_code, status, home_score, away_score, kickoff_at")
       .not("api_football_id", "is", null);
 
     if (!force) {
@@ -277,7 +277,9 @@ Deno.serve(async (req) => {
         (newStatus !== "upcoming" && (
           ftScore.home !== (dbMatch as any).home_score ||
           ftScore.away !== (dbMatch as any).away_score
-        ));
+        )) ||
+        // Always update if livescore_id not yet stored
+        !(dbMatch as any).livescore_id;
 
       if (changed) toUpdate.push({ dbMatch: dbMatch as any, lsMatch, newStatus, ftScore });
     }
@@ -319,6 +321,9 @@ Deno.serve(async (req) => {
         patch.home_score = ftScore.home;
         patch.away_score = ftScore.away;
       }
+
+      // Store livescore internal id so lineups/stats/events can be fetched later
+      patch.livescore_id = lsMatch.id;
 
       const events = eventsMap.get(lsMatch.id);
       if (events !== undefined) patch.match_events = events;
