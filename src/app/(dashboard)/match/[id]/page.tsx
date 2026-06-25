@@ -96,8 +96,10 @@ export default async function MatchPage({ params }: { params: { id: string } }) 
 
   let allPlayers: Array<{ name: string; team_code: string; position: string; shirt: number }> = [];
 
-  if (storedLineups && storedLineups.length >= 2) {
-    // Use confirmed lineup data if available
+  // Only use stored lineups if they actually have players (guard against bad-cache rows with 0 players)
+  const totalStoredPlayers = (storedLineups ?? []).reduce((sum: number, row: any) => sum + (row.players?.length ?? 0), 0);
+
+  if (storedLineups && storedLineups.length >= 2 && totalStoredPlayers > 0) {
     for (const row of storedLineups) {
       for (const p of row.players ?? []) {
         allPlayers.push({
